@@ -40,6 +40,11 @@ namespace VestaApi.Models
         public virtual ICollection<Incidencia> IncidenciasReportadas { get; set; } = new HashSet<Incidencia>();
         public virtual ICollection<UsuarioEmpresa> Vinculaciones { get; set; } = new HashSet<UsuarioEmpresa>();
 
+
+        public bool Activo { get; set; } = true; 
+        public string? TokenVerificacion { get; set; }
+        public DateTime? TokenExpiracion { get; set; }
+
         public Usuario() { }
 
         public int? IdAyuntamiento { get; set; }

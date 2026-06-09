@@ -19,12 +19,38 @@ export const Centros = () => {
   const [centroSeleccionado, setCentroSeleccionado] = useState(null);
   const [loteElegidoId, setLoteElegidoId] = useState("");
 
+  // Variables base del localStorage
+  const miRol = localStorage.getItem("rol") || ""; 
+
   const [formData, setFormData] = useState({
     nombre: "",
     direccion: "",
     localidad: "",
     idAyuntamiento: "",
   });
+
+  // Intentamos obtener una ID de ayuntamiento real cruzando datos de la API si falla el localStorage
+  const obtenerIdAyuntamientoValida = useCallback((listaAyuntamientos) => {
+    if (!listaAyuntamientos || listaAyuntamientos.length === 0) return "";
+
+    // 1. Intentona principal: Leer de las variables guardadas
+    const idDirecta = localStorage.getItem("ayuntamientoId") || localStorage.getItem("usuarioId") || "";
+    
+    // Validamos si esa ID directa de verdad existe en la lista de ayuntamientos que nos da la API
+    const existeId = listaAyuntamientos.some(a => a.id.toString() === idDirecta.toString());
+    if (existeId && idDirecta) {
+      return idDirecta.toString();
+    }
+
+    // 2. Plan de Rescate (Si eres rol Ayuntamiento y tu ID está mal mapeada):
+    // Asignamos de forma automática el primer ayuntamiento disponible que encontremos para que no rompa la inserción
+    if (miRol === "Ayuntamiento") {
+      console.warn("Advertencia: No se detectó una ID de ayuntamiento válida en el localStorage. Usando mapeo automático.");
+      return listaAyuntamientos[0]?.id?.toString() || "";
+    }
+
+    return "";
+  }, [miRol]);
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -40,6 +66,15 @@ export const Centros = () => {
         console.error("Error al precargar los lotes:", errLotes);
       }
 
+      // Seteamos los Ayuntamientos primero para tenerlos listos
+      let ayuntamientosExtraidos = [];
+      if (dataAytos && Array.isArray(dataAytos)) {
+        ayuntamientosExtraidos = dataAytos;
+      } else if (dataAytos && dataAytos.data && Array.isArray(dataAytos.data)) {
+        ayuntamientosExtraidos = dataAytos.data;
+      }
+      setAyuntamientos(ayuntamientosExtraidos);
+
       if (dataCentros && Array.isArray(dataCentros)) {
         setCentros(dataCentros);
       } else if (
@@ -48,12 +83,6 @@ export const Centros = () => {
         Array.isArray(dataCentros.data)
       ) {
         setCentros(dataCentros.data);
-      }
-
-      if (dataAytos && Array.isArray(dataAytos)) {
-        setAyuntamientos(dataAytos);
-      } else if (dataAytos && dataAytos.data && Array.isArray(dataAytos.data)) {
-        setAyuntamientos(dataAytos.data);
       }
     } catch (error) {
       console.error("Error al cargar datos en la vista de centros:", error);
@@ -66,6 +95,20 @@ export const Centros = () => {
     cargarDatos();
   }, [cargarDatos]);
 
+  // Manejador para abrir el modal pre-cargando la ID correcta resuelta
+  const abrirNuevoCentroModal = () => {
+    setEditandoId(null);
+    const idAyuntamientoCorrecta = miRol === "Ayuntamiento" ? obtenerIdAyuntamientoValida(ayuntamientos) : "";
+    
+    setFormData({
+      nombre: "",
+      direccion: "",
+      localidad: "",
+      idAyuntamiento: idAyuntamientoCorrecta,
+    });
+    setMostrarModal(true);
+  };
+
   const handleDesasignarLote = async (centroId, loteId) => {
     if (
       !window.confirm(
@@ -76,12 +119,11 @@ export const Centros = () => {
     }
 
     try {
-
       await api.post(
         `/Lotes/desasignar-centro?loteId=${loteId}&centroId=${centroId}`,
       );
       alert("¡Lote retirado de la instalación con éxito!");
-      cargarDatos(); 
+      cargarDatos();
     } catch (error) {
       console.error("Error al desasignar el lote:", error);
       alert(
@@ -130,13 +172,29 @@ export const Centros = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let idFinal = formData.idAyuntamiento;
+
+      // Doble check de seguridad para el rol Ayuntamiento: si se va a mandar vacío o erróneo lo rescatamos
+      if (miRol === "Ayuntamiento" && (!idFinal || isNaN(parseInt(idFinal, 10)))) {
+        idFinal = obtenerIdAyuntamientoValida(ayuntamientos);
+      }
+
+      const ayuntamientoIdParseado = parseInt(idFinal, 10);
+
+      if (isNaN(ayuntamientoIdParseado)) {
+        alert(`Error de validación interna: No se ha podido resolver un ID numérico de Ayuntamiento válido.`);
+        return;
+      }
+
       const centroParaEnviar = {
         id: editandoId || 0,
         nombre: formData.nombre,
         direccion: formData.direccion,
         localidad: formData.localidad,
-        idAyuntamiento: parseInt(formData.idAyuntamiento),
+        idAyuntamiento: ayuntamientoIdParseado,
       };
+
+      console.log("Datos JSON exactos listos para POST/PUT:", centroParaEnviar);
 
       if (editandoId) {
         await updateCentro(editandoId, centroParaEnviar);
@@ -146,9 +204,11 @@ export const Centros = () => {
 
       cerrarModal();
       cargarDatos();
+      alert("¡Centro guardado con éxito!");
     } catch (error) {
-      console.error("Error al procesar:", error);
-      alert("Error al guardar los cambios.");
+      console.error("Error al procesar el servidor:", error);
+      const mensajeServidor = error.response?.data?.mensaje || error.response?.data || "Error de llave foránea (500) en el servidor.";
+      alert(`Error crítico al guardar en la Base de Datos:\n\n${mensajeServidor}\n\nRevisa que la ID del Ayuntamiento exista.`);
     }
   };
 
@@ -167,7 +227,7 @@ export const Centros = () => {
       cerrarModalLote();
       cargarDatos();
     } catch (error) {
-      console.error("Error al asociar lote y centro:", error);
+      console.error("Error al asociar lote and centro:", error);
       alert(
         error.response?.data?.mensaje || "Error al procesar la vinculación.",
       );
@@ -185,6 +245,13 @@ export const Centros = () => {
       }
     }
   };
+
+  // Resuelve el nombre visible en el input deshabilitado
+  const miAyuntamientoNombre = ayuntamientos.find(
+    (a) => a.id.toString() === formData.idAyuntamiento.toString()
+  )?.nombreMunicipio || ayuntamientos.find(
+    (a) => a.id.toString() === formData.idAyuntamiento.toString()
+  )?.nombre || "Ayuntamiento Asignado";
 
   return (
     <div className="vista-page-container">
@@ -219,7 +286,7 @@ export const Centros = () => {
             </h2>
             <button
               className="btn-vesta primario"
-              onClick={() => setMostrarModal(true)}
+              onClick={abrirNuevoCentroModal}
             >
               + Nuevo Centro
             </button>
@@ -327,15 +394,8 @@ export const Centros = () => {
                                   justifyContent: "center",
                                   padding: 0,
                                 }}
-                                onMouseEnter={(e) => {
-                                  e.target.style.backgroundColor = "#fee2e2";
-                                  e.target.style.color = "#b91c1c";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.target.style.backgroundColor = "#e2f8e9";
-                                  e.target.style.color = "#166534";
-                                }}
-                              >                               
+                              >
+                                &times;
                               </button>
                             </span>
                           ))
@@ -450,28 +510,43 @@ export const Centros = () => {
                   placeholder="Ej: Logroño"
                 />
               </div>
+
               <div>
-                <label style={labelStyle}>
-                  Asignar Ente Regulador (Ayuntamiento)
-                </label>
-                <select
-                  value={formData.idAyuntamiento}
-                  onChange={(e) =>
-                    setFormData({ ...formData, idAyuntamiento: e.target.value })
-                  }
-                  required
-                  style={selectStyle}
-                >
-                  <option value="">
-                    -- Selecciona la administración responsable --
-                  </option>
-                  {ayuntamientos.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nombreMunicipio || a.nombre}
+                <label style={labelStyle}>Ayuntamiento Responsable</label>
+                {miRol === "Admin" ? (
+                  <select
+                    value={formData.idAyuntamiento}
+                    onChange={(e) =>
+                      setFormData({ ...formData, idAyuntamiento: e.target.value })
+                    }
+                    required
+                    style={selectStyle}
+                  >
+                    <option value="">
+                      -- Selecciona la administración responsable --
                     </option>
-                  ))}
-                </select>
+                    {ayuntamientos.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.nombreMunicipio || a.nombre}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={miAyuntamientoNombre}
+                    disabled
+                    style={{
+                      ...inputStyle,
+                      backgroundColor: "#f1f5f9",
+                      color: "#64748b",
+                      cursor: "not-allowed",
+                      border: "1px solid #e2e8f0"
+                    }}
+                  />
+                )}
               </div>
+
               <div
                 style={{
                   display: "flex",

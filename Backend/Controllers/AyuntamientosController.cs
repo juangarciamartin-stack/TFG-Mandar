@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VestaApi.Models;
 using Backend.Data;
+using VestaApi.DTOs;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.Controllers
@@ -16,7 +17,7 @@ namespace Backend.Controllers
         {
             _context = context;
         }
-
+        
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Ayuntamiento>>> GetAyuntamientos()
         {
@@ -25,14 +26,58 @@ namespace Backend.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Ayuntamiento>> PostAyuntamiento(Ayuntamiento ayuntamiento)
+        public async Task<ActionResult<Ayuntamiento>> PostAyuntamiento(RegistroAyuntamientoDto dto)
         {
-            _context.Ayuntamientos.Add(ayuntamiento);
-            await _context.SaveChangesAsync();
+            if (string.IsNullOrEmpty(dto.Email) || string.IsNullOrEmpty(dto.Password))
+            {
+                return BadRequest("El email y la contraseña son obligatorios.");
+            }
 
-            return CreatedAtAction(nameof(GetAyuntamientos), new { id = ayuntamiento.Id }, ayuntamiento);
+            var existeUsuario = await _context.Usuarios.AnyAsync(u => u.Email == dto.Email);
+            if (existeUsuario)
+            {
+                return BadRequest("El correo electrónico ya está registrado en el sistema.");
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var nuevoAyuntamiento = new Ayuntamiento
+                {
+                    NombreMunicipio = dto.Nombre,
+                    Cif = dto.Cif,
+                    Direccion = dto.Direccion
+                };
+
+                _context.Ayuntamientos.Add(nuevoAyuntamiento);
+                await _context.SaveChangesAsync(); 
+
+                var nuevoUsuario = new Usuario
+                {
+                    Nombre = dto.NombreResponsable.Trim(), 
+                    Email = dto.Email.Trim(),
+                    Password = BCrypt.Net.BCrypt.HashPassword(dto.Password), 
+                    Rol = "Ayuntamiento", 
+                    Activo = true,
+                    Dni = dto.DniResponsable.Trim().ToUpper(), 
+                    Telefono = dto.TelefonoResponsable.Trim(), 
+                    IdAyuntamiento = nuevoAyuntamiento.Id 
+                };
+
+                _context.Usuarios.Add(nuevoUsuario);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(GetAyuntamientos), new { id = nuevoAyuntamiento.Id }, nuevoAyuntamiento);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Error interno al crear el ayuntamiento y su gestor: {ex.Message}");
+            }
         }
-
         [HttpPut("{id}")]
         public async Task<IActionResult> PutAyuntamiento(int id, Ayuntamiento ayuntamiento)
         {
@@ -65,17 +110,25 @@ namespace Backend.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAyuntamiento(int id)
         {
-
             var ayuntamiento = await _context.Ayuntamientos.FindAsync(id);
             if (ayuntamiento == null)
             {
-                return NotFound("Ayuntamiento no encontrado");
+                return NotFound("El ayuntamiento no existe.");
+            }
+
+            var usuariosVinculados = await _context.Usuarios
+                .Where(u => u.IdAyuntamiento == id)
+                .ToListAsync();
+
+            if (usuariosVinculados.Any())
+            {
+                _context.Usuarios.RemoveRange(usuariosVinculados);
             }
 
             _context.Ayuntamientos.Remove(ayuntamiento);
             await _context.SaveChangesAsync();
 
-            return NoContent(); 
+            return NoContent();
         }
     }
 }

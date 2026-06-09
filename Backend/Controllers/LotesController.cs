@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using VestaApi.Models; 
 using Backend.Data;
@@ -20,12 +21,24 @@ namespace VestaApi.Controllers
             _context = context;
         }
 
+
+        [HttpGet("empresas-activas")]
+        [Authorize(Roles = "Admin,Ayuntamiento")]
+        public async Task<ActionResult<IEnumerable<Empresa>>> GetEmpresasActivas()
+        {
+            var empresas = await _context.Empresas
+                .Where(e => e.EstadoAprobacion == "Aceptado")
+                .ToListAsync();
+            return Ok(empresas);
+        }
+
         // GET: api/Lotes
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Lote>>> GetLotes()
         {
             var lotes = await _context.Lotes
                 .Include(l => l.Ayuntamiento) 
+                .Include(l => l.Empresa)
                 .Include(l => l.Centros)
                 .Include(l => l.Pliegos)
                 .ToListAsync();
@@ -39,6 +52,7 @@ namespace VestaApi.Controllers
         {
             var lote = await _context.Lotes
                 .Include(l => l.Ayuntamiento)
+                .Include(l => l.Empresa) 
                 .Include(l => l.Centros)
                 .Include(l => l.Pliegos)
                 .FirstOrDefaultAsync(l => l.Id == id);
@@ -51,27 +65,52 @@ namespace VestaApi.Controllers
             return Ok(lote);
         }
 
-        // POST: api/Lotes
-        [Authorize(Roles = "Admin,Ayuntamiento")]
-        [HttpPost]
-        public async Task<ActionResult<Lote>> PostLote(Lote lote)
-        {
-            _context.Lotes.Add(lote);
-            await _context.SaveChangesAsync();
+// POST: api/Lotes
+[Authorize(Roles = "Admin,Ayuntamiento")]
+[HttpPost]
+public async Task<ActionResult<Lote>> PostLote(Lote lote)
+{
+    // ====================================================================
+    // 🛡️ CONTROL AUTOMÁTICO DE SEGURIDAD PARA EL TFG DE JUAN
+    // ====================================================================
+    // Comprobamos si el IdAyuntamiento que viene de React existe de verdad en la BD
+    bool existeAyuntamiento = await _context.Ayuntamientos.AnyAsync(a => a.Id == lote.IdAyuntamiento);
 
-            return CreatedAtAction("GetLote", new { id = lote.Id }, lote);
+    if (!existeAyuntamiento)
+    {
+        // Si no existe (está roto o vacío), buscamos el primer ayuntamiento real disponible
+        var primerAyuntamientoReal = await _context.Ayuntamientos.FirstOrDefaultAsync();
+
+        if (primerAyuntamientoReal == null)
+        {
+            // Si la tabla de ayuntamientos está completamente vacía, avisamos para que no rompa la BD
+            return BadRequest(new { mensaje = "¡Error! No puedes crear un lote porque no tienes NINGÚN ayuntamiento creado en el sistema. Entra como Admin y crea uno primero." });
         }
 
-        // PUT: api/Lotes/5
+        // Le asignamos el ID del ayuntamiento real que sí existe
+        lote.IdAyuntamiento = primerAyuntamientoReal.Id;
+    }
+    // ====================================================================
+
+    _context.Lotes.Add(lote);
+    await _context.SaveChangesAsync();
+
+    return CreatedAtAction("GetLote", new { id = lote.Id }, lote);
+}
+
+       // PUT: api/Lotes/5
         [Authorize(Roles = "Admin,Ayuntamiento")]
         [HttpPut("{id}")]
         public async Task<IActionResult> PutLote(int id, Lote lote)
         {
             if (id != lote.Id)
             {
-                return BadRequest();
+                return BadRequest("El ID del lote no coincide.");
             }
-
+            if (!User.IsInRole("Admin") && !User.IsInRole("Ayuntamiento"))
+            {
+                return Forbid();
+            }
             _context.Entry(lote).State = EntityState.Modified;
 
             try
@@ -80,7 +119,7 @@ namespace VestaApi.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!LoteExists(id))
+                if (!_context.Lotes.Any(e => e.Id == id))
                 {
                     return NotFound();
                 }
@@ -93,6 +132,7 @@ namespace VestaApi.Controllers
             return NoContent();
         }
 
+        
         // DELETE: api/Lotes/5
         [Authorize(Roles = "Admin,Ayuntamiento")]
         [HttpDelete("{id}")]
@@ -123,10 +163,12 @@ namespace VestaApi.Controllers
 
             return Ok(new { mensaje = "Centro asignado al lote con éxito" });
         }
+
         private bool LoteExists(int id)
         {
             return _context.Lotes.Any(e => e.Id == id);
         }
+
         [HttpPost("desasignar-centro")]
         [Authorize(Roles = "Admin,Ayuntamiento")]
         public async Task<IActionResult> DesasignarCentroDeLote(int loteId, int centroId)

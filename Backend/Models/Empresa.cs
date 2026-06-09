@@ -32,8 +32,9 @@ namespace VestaApi.Models
         public virtual ICollection<UsuarioEmpresa> Relaciones { get; set; } = new HashSet<UsuarioEmpresa>();
         public virtual ICollection<Lote> LotesAsignados { get; set; } = new HashSet<Lote>();
 
+
         public List<UsuarioEmpresa> ObtenerPlantilla() => 
-            Relaciones.Where(r => r.EstadoSolicitud == "Aceptado").ToList();
+            Relaciones.Where(r => r.EstadoSolicitud == "Contratado").ToList();
 
         public List<UsuarioEmpresa> ObtenerCandidatos() => 
             Relaciones.Where(r => r.EstadoSolicitud == "Pendiente").ToList();

@@ -9,43 +9,58 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
 
-    try {
-      const data = await login(email, password);
+  try {
+    // 1. LLAMADA DIRECTA CORREGIDA (Usando fetch nativo)
+    const response = await fetch('http://localhost:5125/api/Usuarios/login', {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email: email, password: password }),
+    });
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("usuarioId", data.usuarioId);
-      localStorage.setItem("rol", data.rol);
-
-      if (data.empresaId) {
-        localStorage.setItem("empresaId", data.empresaId);
-      } else {
-        localStorage.removeItem("empresaId"); 
-      }
-
-      if (data.idAyuntamiento) {
-        localStorage.setItem("idAyuntamiento", data.idAyuntamiento);
-      } else {
-        localStorage.removeItem("idAyuntamiento"); 
-      }
-
-      if (data.tieneContratoActivo !== undefined) {
-        localStorage.setItem("tieneContratoActivo", data.tieneContratoActivo);
-      }
-
-
-      navigate("/dashboard");
-    } catch (err) {
-      setError(err.message || "Email o contraseña incorrectos.");
-    } finally {
-      setLoading(false);
+    // 2. Control de errores del servidor
+    if (!response.ok) {
+      throw new Error("Email o contraseña incorrectos o el servidor no responde.");
     }
-  };
 
+    // 3. Procesamos la respuesta JSON
+    const data = await response.json();
+
+    const tokenReal = data.token || data.Token;
+    const usuarioIdReal = data.usuarioId || data.UsuarioId;
+    const rolReal = data.rol || data.Rol;
+    const idAyuntamientoReal = data.idAyuntamiento || data.IdAyuntamiento;
+
+    // 4. Guardamos en el navegador
+    localStorage.setItem("token", tokenReal);
+    localStorage.setItem("usuarioId", usuarioIdReal);
+    localStorage.setItem("rol", rolReal);
+
+    if (idAyuntamientoReal) {
+      localStorage.setItem("idAyuntamiento", idAyuntamientoReal);
+    } else {
+      localStorage.removeItem("idAyuntamiento"); 
+    }
+
+    // 5. Redirección inteligente
+    if (rolReal === "Admin") {
+      navigate("/ayuntamientos");
+    } else {
+      navigate("/dashboard");
+    }
+
+  } catch (err) {
+    setError(err.message || "Email o contraseña incorrectos.");
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div style={styles.container}>
       <h2

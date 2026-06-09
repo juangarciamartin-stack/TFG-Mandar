@@ -24,8 +24,7 @@ namespace Backend.Controllers
         {
             _context = context;
         }
-
-       // GET: api/Empresas
+        // GET: api/Empresas
         [HttpGet]
         public async Task<IActionResult> GetEmpresas()
         {
@@ -40,7 +39,13 @@ namespace Backend.Controllers
                         e.Direccion,
                         e.EmailContacto,
                         e.UsuarioId,
-                        EstadoAprobacion = e.EstadoAprobacion ?? "Aprobado" 
+                        EstadoAprobacion = e.EstadoAprobacion ?? "Aprobado",
+                        
+                        // CAMBIO AQUÍ: Traemos la lista con TODOS los nombres de los lotes asignados
+                        LotesAsignados = _context.Lotes
+                            .Where(l => l.IdEmpresa == e.Id)
+                            .Select(l => l.Nombre)
+                            .ToList()
                     })
                     .ToListAsync();
 
@@ -51,7 +56,6 @@ namespace Backend.Controllers
                 return Ok(new List<object>());
             }
         }
-
         // POST: api/Empresas/postularse
         [HttpPost("postularse")]
         public async Task<IActionResult> PostularseAEmpresa([FromForm] int usuarioId, [FromForm] int empresaId, [FromForm] string notas, [FromForm] IFormFile curriculumFile)
@@ -104,6 +108,42 @@ namespace Backend.Controllers
             {
                 Console.WriteLine($"ERROR AL GUARDAR CV EN DISCO: {ex.Message}");
                 return StatusCode(500, new { mensaje = $"Error interno al procesar el archivo binario: {ex.Message}" });
+            }
+        }
+
+       // GET: api/Empresas/mis-pliegos/{idEmpresa}
+        [HttpGet("mis-pliegos/{idEmpresa}")]
+        public async Task<IActionResult> GetPliegosPropio(int idEmpresa)
+        {
+            try
+            {
+                // 1. Buscamos los IDs de los lotes adjudicados a esta empresa
+                var loteIds = await _context.Lotes
+                    .Where(l => l.IdEmpresa == idEmpresa)
+                    .Select(l => l.Id)
+                    .ToListAsync();
+
+                if (!loteIds.Any()) return Ok(new List<object>());
+
+                // 2. Buscamos los pliegos que apunten a esos Lotes
+                var pliegos = await _context.Pliegos
+                    .Where(p => loteIds.Contains(p.IdLote))
+                    .Select(p => new {
+                        PliegoId = p.Id,
+                        NombrePliego = p.NombreArchivo,
+                        Descripcion = p.Descripcion,
+                        Ruta = p.RutaURL,
+                        Fecha = p.FechaSubida,
+                        LoteId = p.IdLote
+                    })
+                    .ToListAsync();
+
+                return Ok(pliegos);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR EN GET MIS PLIEGOS: {ex.Message}");
+                return StatusCode(500, new { mensaje = "Error al recuperar los pliegos asignados." });
             }
         }
 
@@ -182,13 +222,13 @@ namespace Backend.Controllers
             return Ok(new { mensaje = "Trabajador contratado y añadido a la plantilla con éxito." });
         }
 
-        // POST: api/Empresas/subir-nomina
+       // POST: api/Empresas/subir-nomina
         [HttpPost("subir-nomina")]
-        public async Task<IActionResult> SubirNomina([FromForm] int usuarioId, [FromForm] string periodo, [FromForm] IFormFile archivoNomina)
+        public async Task<IActionResult> SubirNomina([FromForm] int usuarioId, [FromForm] int empresaId, [FromForm] string periodo, [FromForm] IFormFile archivoNomina)
         {
-            if (usuarioId <= 0 || archivoNomina == null || archivoNomina.Length == 0)
+            if (usuarioId <= 0 || empresaId <= 0 || archivoNomina == null || archivoNomina.Length == 0)
             {
-                return BadRequest("Datos de nómina o archivo binario inválidos.");
+                return BadRequest("Datos de nómina, empresa o archivo binario inválidos.");
             }
 
             try
@@ -209,11 +249,31 @@ namespace Backend.Controllers
                 }
 
                 var urlRelativaBD = $"/uploads/nominas/{nombreArchivoUnico}";
+                var partesPeriodo = periodo.Split('/');
+                string mesNomina = partesPeriodo[0].Trim();
+                int anioNomina = DateTime.Now.Year;
+                if (partesPeriodo.Length > 1 && int.TryParse(partesPeriodo[1].Trim(), out int anioParseado))
+                {
+                    anioNomina = anioParseado;
+                }
+
+                var nuevaNomina = new Nomina 
+                {
+                    UsuarioId = usuarioId,
+                    EmpresaId = empresaId,
+                    Mes = mesNomina,
+                    Anio = anioNomina,
+                    RutaArchivoPDF = urlRelativaBD
+                };
+
+                _context.Nominas.Add(nuevaNomina);
+                await _context.SaveChangesAsync();
+
                 return Ok(new { mensaje = "Nómina guardada y asociada al operario con éxito.", url = urlRelativaBD });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { mensaje = $"Error al escribir el archivo: {ex.Message}" });
+                return StatusCode(500, new { mensaje = $"Error al escribir el archivo o registrar en BD: {ex.Message}" });
             }
         }
 
@@ -250,6 +310,36 @@ namespace Backend.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { mensaje = $"Error al recuperar nóminas del usuario: {ex.Message}" });
+            }
+        }
+        // GET: api/Empresas/mis-centros/{idEmpresa}
+        [HttpGet("mis-centros/{idEmpresa}")]
+        public async Task<IActionResult> GetCentrosPropio(int idEmpresa)
+        {
+            try
+            {
+                var lotesConCentros = await _context.Lotes
+                    .Where(l => l.IdEmpresa == idEmpresa)
+                    .Include(l => l.Centros) 
+                    .ToListAsync();
+
+                var centros = lotesConCentros
+                    .SelectMany(l => l.Centros)
+                    .Select(c => new {
+                        Id = c.Id,
+                        Nombre = c.Nombre,
+                        Direccion = c.Direccion,
+                        Localidad = c.Localidad
+                    })
+                    .DistinctBy(c => c.Id) 
+                    .ToList();
+
+                return Ok(centros);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR EN GET MIS CENTROS: {ex.Message}");
+                return StatusCode(500, new { mensaje = "Error al recuperar los centros asignados." });
             }
         }
 
@@ -324,21 +414,26 @@ namespace Backend.Controllers
             }
         }
 
-        //PUT
+       //PUT
         [HttpPut("{id}")]
         public async Task<IActionResult> PutEmpresa(int id, Empresa empresa)
         {
             if (id != empresa.Id) return BadRequest();
 
-            var empresaExistente = await _context.Empresas.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id);
+            var empresaExistente = await _context.Empresas.FirstOrDefaultAsync(e => e.Id == id);
             if (empresaExistente == null) return NotFound();
+            
             int idUsuarioGestor = empresaExistente.UsuarioId;
 
-            _context.Entry(empresa).State = EntityState.Modified;
+            empresaExistente.NombreEmpresa = empresa.NombreEmpresa;
+            empresaExistente.Cif = empresa.Cif;
+            empresaExistente.Direccion = empresa.Direccion;
+            empresaExistente.EmailContacto = empresa.EmailContacto;
+            empresaExistente.EstadoAprobacion = empresa.EstadoAprobacion;
 
             try
             {
-                if (empresa.EstadoAprobacion == "Baja")
+                if (empresaExistente.EstadoAprobacion == "Baja")
                 {
                     var relacionesAfectadas = _context.UsuarioEmpresas.Where(ue => ue.EmpresaId == id);
                     _context.UsuarioEmpresas.RemoveRange(relacionesAfectadas);
@@ -517,7 +612,7 @@ namespace Backend.Controllers
             }
         }
 
-       [HttpPost("solicitar")]
+     [HttpPost("solicitar")]
         [AllowAnonymous] 
         public async Task<IActionResult> SolicitarCreacionEmpresa([FromBody] SolicitarEmpresaDto model)
         {
@@ -526,7 +621,6 @@ namespace Backend.Controllers
             var existeCif = _context.Empresas.Any(e => e.Cif == model.Cif);
             if (existeCif) return BadRequest(new { mensaje = "Ya existe una empresa registrada con ese CIF." });
 
-            // 1. Creamos la empresa pendiente
             var nuevaEmpresa = new Empresa {
                 NombreEmpresa = model.NombreEmpresa,
                 Cif = model.Cif,
@@ -537,16 +631,10 @@ namespace Backend.Controllers
             };
             _context.Empresas.Add(nuevaEmpresa);
 
-            var usuario = await _context.Usuarios.FindAsync(model.UsuarioId);
-            if (usuario != null)
-            {
-                usuario.Rol = "Empresa"; 
-                _context.Entry(usuario).State = EntityState.Modified;
-            }
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Solicitud enviada con éxito. Tu rol ha sido actualizado a Empresa." });
+            return Ok(new { mensaje = "Solicitud enviada con éxito. Tu empresa está en estado Pendiente de aprobación." });
         }
 
         // GET: api/Empresas/pendientes
@@ -579,7 +667,12 @@ namespace Backend.Controllers
                         e.Id,
                         e.NombreEmpresa,
                         e.Cif,
-                        e.EstadoAprobacion 
+                        e.EstadoAprobacion,
+                        
+                        LotesAsignados = _context.Lotes
+                            .Where(l => l.IdEmpresa == e.Id)
+                            .Select(l => l.Nombre)
+                            .ToList()
                     })
                     .ToListAsync();
 
@@ -590,6 +683,21 @@ namespace Backend.Controllers
                 Console.WriteLine($"ERROR EN GET MIS EMPRESAS GESTOR: {ex.Message}");
                 return StatusCode(500, new { mensaje = "Error al recuperar tus empresas asociadas." });
             }
+        }
+        // GET: api/Empresas/lista-desplegable
+        [HttpGet("lista-desplegable")]
+        public async Task<IActionResult> GetEmpresasDesplegable()
+        {
+           
+             var empresas = await _context.Empresas
+                .Where(e => e.EstadoAprobacion == "Aprobado")
+                .Select(e => new {
+                    id = e.Id,                
+                    nombreEmpresa = e.NombreEmpresa
+                })
+                .ToListAsync();
+
+            return Ok(empresas);
         }
      
 

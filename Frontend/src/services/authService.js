@@ -2,49 +2,36 @@ import axios from "axios";
 
 const API_URL = "http://localhost:5125/api/Auth";
 
-// Login con captura de errores y mapeo de DTO corregido
 export const login = async (email, password) => {
   try {
+    // Esto llamará a http://localhost:5141/api/Usuarios/login
     const response = await axios.post(`${API_URL}/login`, {
       email: email,
       password: password,
     });
 
-    if (response.data && response.data.token) {
-      localStorage.setItem("token", response.data.token);
-      localStorage.setItem("rol", response.data.rol);
-      localStorage.setItem("usuarioId", response.data.usuarioId);
-      localStorage.setItem("nombre", response.data.nombre || "");
+    // Validamos la respuesta procesando tanto mayúsculas de C# como minúsculas
+    const data = response.data;
+    const token = data.token || data.Token;
+    const rol = data.rol || data.Rol;
+    const usuarioId = data.usuarioId || data.UsuarioId;
 
-      if (response.data.refreshToken) {
-        localStorage.setItem("refreshToken", response.data.refreshToken);
-      }
+    if (token) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("rol", rol);
+      localStorage.setItem("usuarioId", usuarioId);
+      localStorage.setItem("nombre", data.nombre || "");
 
-      //  Guardar ID de empresa si el usuario gestiona una
-      if (response.data.empresaId) {
-        localStorage.setItem("empresaId", response.data.empresaId);
-      } else {
-        localStorage.removeItem("empresaId");
-      }
-
-      //Guardar el ID real del Ayuntamiento si viene en la respuesta
-      if (response.data.idAyuntamiento) {
-        localStorage.setItem("idAyuntamiento", response.data.idAyuntamiento);
+      if (data.idAyuntamiento) {
+        localStorage.setItem("idAyuntamiento", data.idAyuntamiento);
       } else {
         localStorage.removeItem("idAyuntamiento");
       }
-
-      //  Guardar flag de doble vida laboral
-      localStorage.setItem(
-        "tieneContratoActivo",
-        response.data.tieneContratoActivo ? "true" : "false",
-      );
     }
 
-    return response.data;
+    return data;
   } catch (error) {
-    const mensajeError =
-      error.response?.data?.mensaje || "Error al conectar con el servidor";
+    const mensajeError = error.response?.data?.mensaje || "Email o contraseña incorrectos.";
     console.error("Error en login:", mensajeError);
     throw new Error(mensajeError);
   }
