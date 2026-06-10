@@ -7,5 +7,6 @@ namespace VestaApi.DTOs
         public string Direccion { get; set; } = null!;
         public string EmailContacto { get; set; } = null!;
         public int UsuarioId { get; set; }
+        public int AyuntamientoId { get; set; } 
     }
 }

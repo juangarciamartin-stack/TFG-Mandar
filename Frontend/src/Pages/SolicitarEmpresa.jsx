@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../Components/Sidebar";
 import api from "../services/api"; 
@@ -8,13 +8,32 @@ export const SolicitarEmpresa = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  
+  // 1. Estado para almacenar la lista de ayuntamientos disponibles
+  const [ayuntamientos, setAyuntamientos] = useState([]);
 
   const [formData, setFormData] = useState({
     nombreEmpresa: "",
     cif: "",
     direccion: "",
     emailContacto: "",
+    ayuntamientoId: "", // 2. Añadimos el campo al estado del formulario
   });
+
+  // 3. Traer los ayuntamientos del sistema al cargar la pantalla
+  useEffect(() => {
+    const obtenerAyuntamientos = async () => {
+      try {
+        const response = await api.get("/Ayuntamientos"); // Asegúrate de que esta es tu ruta en el backend
+        if (response.data) {
+          setAyuntamientos(response.data);
+        }
+      } catch (error) {
+        console.error("Error al cargar la lista de ayuntamientos:", error);
+      }
+    };
+    obtenerAyuntamientos();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -23,7 +42,7 @@ export const SolicitarEmpresa = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage("");
@@ -38,9 +57,14 @@ export const SolicitarEmpresa = () => {
     }
 
     try {
+      // MAPEAMOS MANUALMENTE ASEGURANDO QUE COINCIDA CON TU CLASE SolicitarEmpresaDto DE C#
       const payload = {
-        ...formData,
-        usuarioId: parseInt(currentUserId), 
+        NombreEmpresa: formData.nombreEmpresa,
+        Cif: formData.cif,
+        Direccion: formData.direccion,
+        EmailContacto: formData.emailContacto, // Forzamos la mayúscula del DTO
+        UsuarioId: parseInt(currentUserId, 10),
+        AyuntamientoId: parseInt(formData.ayuntamientoId, 10), 
       };
 
       const response = await api.post("/Empresas/solicitar", payload);
@@ -54,6 +78,7 @@ export const SolicitarEmpresa = () => {
         cif: "",
         direccion: "",
         emailContacto: "",
+        ayuntamientoId: "",
       });
 
       setTimeout(() => {
@@ -63,13 +88,12 @@ export const SolicitarEmpresa = () => {
       console.error(error);
       const msg =
         error.response?.data?.mensaje ||
-        "Error al procesar la solicitud de la contrata.";
+        "Error al procesar la solicitud de la contrata. Asegúrate de que los campos numéricos son correctos.";
       setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="vista-page-container" style={{ display: "flex" }}>
       <Sidebar />
@@ -188,7 +212,7 @@ export const SolicitarEmpresa = () => {
                   Email Corporativo de Contacto
                 </label>
                 <input
-                  type="email"
+                  type="type"
                   name="emailContacto"
                   value={formData.emailContacto}
                   onChange={handleChange}
@@ -214,10 +238,31 @@ export const SolicitarEmpresa = () => {
               />
             </div>
 
+            {/* 5. NUEVO CAMPO: Desplegable dinámico para seleccionar Ayuntamiento */}
+            <div>
+              <label style={styles.label}>
+                Ayuntamiento Regulador (Asignar Validación)
+              </label>
+              <select
+                name="ayuntamientoId"
+                value={formData.ayuntamientoId}
+                onChange={handleChange}
+                required
+                style={styles.input}
+              >
+                <option value="">-- Selecciona qué administración auditará tu alta --</option>
+                {ayuntamientos.map((ayto) => (
+                  <option key={ayto.id} value={ayto.id}>
+                    {ayto.nombreMunicipio || ayto.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
+                justify: "flex-end",
                 gap: "12px",
                 marginTop: "10px",
               }}

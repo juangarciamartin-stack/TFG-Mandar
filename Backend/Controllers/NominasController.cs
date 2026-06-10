@@ -135,20 +135,38 @@ namespace VestaApi.Controllers
 
         // GET: api/Nominas/descargar/5
         [HttpGet("descargar/{id}")]
-        public async Task<IActionResult> DescargarNomina(int id)
-        {
-            var nomina = await _context.Nominas.FindAsync(id);
-            if (nomina == null) return NotFound();
+public async Task<IActionResult> DescargarNomina(int id)
+{
+    var nomina = await _context.Nominas.FindAsync(id);
+    if (nomina == null) return NotFound("La nómina no existe en la base de datos.");
 
-            var baseFolder = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
-            var filePath = Path.Combine(baseFolder, "uploads", "nominas", Path.GetFileName(nomina.RutaArchivoPDF));
+    var baseFolder = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+    
+    // 1. Extraemos el nombre del archivo guardado en la base de datos
+    string nombreArchivo = Path.GetFileName(nomina.RutaArchivoPDF);
 
-            if (!System.IO.File.Exists(filePath)) return NotFound("El archivo físico no existe.");
+    // 2. Descodificamos la URL por si acaso el navegador guardó espacios como %20
+    nombreArchivo = Uri.UnescapeDataString(nombreArchivo);
 
-            var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            return File(bytes, "application/pdf", Path.GetFileName(nomina.RutaArchivoPDF));
-        }
+    // 3. Montamos la ruta física final
+    var filePath = Path.Combine(baseFolder, "uploads", "nominas", nombreArchivo);
 
+    // 💡 LOG DE DEPURACIÓN: Si ejecutas en modo Debug, mira la consola de Visual Studio 
+    // para ver exactamente qué ruta está buscando .NET en tu disco duro.
+    Console.WriteLine($"🔍 Buscando nómina físicamente en: {filePath}");
+
+    if (!System.IO.File.Exists(filePath)) 
+    {
+        // Te devolvemos la ruta exacta que ha fallado para que compruebes si el archivo está ahí con ese nombre
+        return NotFound($"El archivo físico no existe en la ruta calculada: {filePath}");
+    }
+
+    var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
+    
+    // Al usar "application/pdf" sin un FileDownloadName forzado, permitimos que el navegador 
+    // lo abra directamente en la pestaña en lugar de obligar a descargarlo al disco
+    return File(bytes, "application/pdf");
+}
         // GET: api/Nominas/mis-nominas
         [HttpGet("mis-nominas")]
         public IActionResult GetMisNominas()

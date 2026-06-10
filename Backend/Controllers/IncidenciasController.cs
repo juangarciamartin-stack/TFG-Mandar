@@ -58,6 +58,7 @@ namespace VestaApi.Controllers
         }
 
        // GET: api/Incidencias/mis-contratas-trabajador
+        // GET: api/Incidencias/mis-contratas-trabajador
         [HttpGet("mis-contratas-trabajador")]
         public async Task<IActionResult> GetMisContratasTrabajador()
         {
@@ -65,8 +66,30 @@ namespace VestaApi.Controllers
             if (string.IsNullOrEmpty(usuarioIdStr)) return Unauthorized();
             int usuarioId = int.Parse(usuarioIdStr);
 
+            // Recuperamos el rol real del usuario desde la base de datos para validar los permisos
+            var usuarioReal = await _context.Usuarios.FindAsync(usuarioId);
+            string rolReal = usuarioReal?.Rol ?? "Trabajador";
+
             try
             {
+                // 🛡️ REGLA PARA EL ADMIN O AYUNTAMIENTO: Tienen acceso a todo el catálogo de empresas activas
+// 🛡️ REGLA PARA EL ADMIN O AYUNTAMIENTO: Tienen acceso a todo el catálogo de empresas activas
+                if (rolReal == "Admin" || rolReal == "Ayuntamiento")
+                {
+                    var todasLasEmpresasActivas = await _context.Empresas
+                        .Where(e => e.EstadoAprobacion == "Aprobado" || e.EstadoAprobacion == null)
+                        .Select(e => new {
+                            Id = e.Id,
+                            NombreEmpresa = e.NombreEmpresa,
+                            TipoRelacion = "Supervisor",
+                            EstadoEmpresa = e.EstadoAprobacion ?? "Aprobado"
+                        })
+                        .ToListAsync();
+
+                    return Ok(todasLasEmpresasActivas);
+                }
+
+                // --- LÓGICA ORIGINAL PARA TRABAJADORES Y EMPRESAS (No se toca para no romper nada) ---
                 var empresasDondeTrabajo = await _context.UsuarioEmpresas
                     .Where(ue => ue.UsuarioId == usuarioId && 
                                  (ue.EstadoSolicitud == "Contratado" || ue.EstadoSolicitud == "contratado"))
@@ -89,7 +112,6 @@ namespace VestaApi.Controllers
                     .ToListAsync();
 
                 var listaCompleta = empresasDondeTrabajo.Concat(misPropiasEmpresas).ToList();
-
                 return Ok(listaCompleta);
             }
             catch (Exception ex)
@@ -98,7 +120,6 @@ namespace VestaApi.Controllers
                 return StatusCode(500, new { mensaje = "Error al compilar el registro de contratas." });
             }
         }
-
         // GET: api/Incidencias?empresaId=5
         [HttpGet]
         public async Task<IActionResult> GetIncidencias([FromQuery] int? empresaId)

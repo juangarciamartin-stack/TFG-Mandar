@@ -35,38 +35,61 @@ export const Personal = () => {
   const mesActualTexto = meses[fechaActual.getMonth()];
   const anioActual = fechaActual.getFullYear();
 
-  useEffect(() => {
-    const cargarMisEmpresas = async () => {
-      if (!miUsuarioId) return;
-      try {
-        let res;
-        if (miRol === "Admin" || miRol === "Ayuntamiento") {
-          res = await api.get("/Usuarios/mis-empresas-selector");
-        } else if (miRol === "Empresa") {
-          res = await api.get(`/Empresas/mis-empresas-gestor/${miUsuarioId}`);
-        } else {
-          return; 
-        }
-
-        const empresasActivas = res.data.filter((emp) => {
-          const estadoAprob = (emp.estadoAprobacion || emp.EstadoAprobacion || "").toLowerCase();
-          const estadoInterno = (emp.estado || emp.Estado || "").toLowerCase();
-          return estadoAprob !== "baja" && estadoInterno !== "solicitada baja";
-        });
-
-        setMisEmpresas(empresasActivas);
-
-        if (empresasActivas.length > 0) {
-          setEmpresaSeleccionadaId(empresasActivas[0].id || empresasActivas[0].Id);
-        } else {
-          setEmpresaSeleccionadaId("");
-        }
-      } catch (error) {
-        console.error("Error al recuperar el listado de empresas:", error);
+useEffect(() => {
+  const cargarEmpresasSelector = async () => {
+    if (!miUsuarioId) return;
+    try {
+      let res;
+      
+      // 1. Hacemos las peticiones correctas por rol
+      if (miRol === "Admin" || miRol === "Ayuntamiento") {
+        res = await api.get("/Empresas"); 
+      } else if (miRol === "Empresa") {
+        res = await api.get(`/Empresas/mis-empresas-gestor/${miUsuarioId}`);
+      } else {
+        return;
       }
-    };
-    cargarMisEmpresas();
-  }, [miUsuarioId, miRol]);
+
+      console.log("Datos brutos recibidos en Personal para el rol " + miRol + ":", res.data);
+
+      let empresasFiltradas = [];
+      
+      if (res.data && Array.isArray(res.data)) {
+        // 2. UNIFICAMOS el formato de los objetos para evitar errores de mapeo entre endpoints
+        const empresasNormalizadas = res.data.map(emp => ({
+          id: emp.id ?? emp.Id ?? emp.idEmpresa ?? emp.IdEmpresa,
+          nombreEmpresa: emp.nombreEmpresa ?? emp.NombreEmpresa ?? emp.nombre ?? emp.Nombre,
+          estado: emp.estado ?? emp.Estado ?? "",
+          estadoAprobacion: emp.estadoAprobacion ?? emp.EstadoAprobacion ?? ""
+        }));
+
+        // 3. FILTRAMOS de manera segura: Solo pasan las que NO estén de baja
+        empresasFiltradas = empresasNormalizadas.filter((emp) => {
+          const estInterno = emp.estado.toLowerCase().trim();
+          const estAprob = emp.estadoAprobacion.toLowerCase().trim();
+          
+          return estInterno !== "baja" && estAprob !== "baja" && estInterno !== "solicitada baja";
+        });
+      }
+
+      console.log("Empresas finales listas para el selector (Personal):", empresasFiltradas);
+
+      // 4. Guardamos en el estado
+      setMisEmpresas(empresasFiltradas);
+      
+      // 5. Auto-seleccionamos la primera si hay resultados
+      if (empresasFiltradas.length > 0) {
+        setEmpresaSeleccionadaId(empresasFiltradas[0].id);
+      } else {
+        setEmpresaSeleccionadaId(""); // Limpiamos si viene vacío
+      }
+    } catch (error) {
+      console.error("Error al recuperar las empresas para el selector en Personal:", error);
+    }
+  };
+  
+  cargarEmpresasSelector();
+}, [miUsuarioId, miRol]);
 
   useEffect(() => {
     const cargarTodoElPersonal = async () => {
@@ -103,13 +126,14 @@ export const Personal = () => {
     setMostrarModal(true);
   };
 
-  const handleSubirNominaSimplificada = async (e) => {
+ const handleSubirNominaSimplificada = async (e) => {
     e.preventDefault();
     if (!formNomina.archivo || !empleadoSeleccionado) {
       alert("Por favor, selecciona primero un archivo en formato PDF.");
       return;
     }
 
+    // 1. Extraemos correctamente el ID del operario
     const idUsuario =
       empleadoSeleccionado.id ||
       empleadoSeleccionado.Id ||
@@ -117,25 +141,37 @@ export const Personal = () => {
       empleadoSeleccionado.UsuarioId;
 
     const formData = new FormData();
+    
+    // 2. Mapeamos los campos exactamente como los pide tu [FromForm] de C#
     formData.append("usuarioId", idUsuario);
-    formData.append("periodo", `${mesActualTexto}_${anioActual}`);
-    formData.append("archivoNomina", formNomina.archivo);
+    formData.append("empresaId", empresaSeleccionadaId); // ¡Imprescindible!
+    
+    // 3. Formateamos el periodo con '/' para que pase el .Contains("/") del backend
+    formData.append("periodo", `${mesActualTexto} / ${anioActual}`);
+    
+    // 4. El nombre de la clave debe ser exactamente "archivoNomina" como tu IFormFile
+    formData.append("archivoNomina", formNomina.archivo); 
 
     try {
-      await api.post("/Empresas/subir-nomina", formData, {
+      // Realizamos la petición POST al backend
+      const res = await api.post("/Empresas/subir-nomina", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      alert(
-        `¡Nómina emitida y guardada con éxito para el periodo de ${mesActualTexto}! (Operación procesada por autoridad de rol: ${miRol})`,
-      );
+      // Si tu backend responde con Ok, sacamos el mensaje que configuraste en C#
+      alert(res.data?.mensaje || `¡Nómina emitida con éxito para el periodo de ${mesActualTexto}!`);
+      
       setMostrarModal(false);
       setFormNomina({ archivo: null });
     } catch (error) {
       console.error("Error al transferir la nómina al backend:", error);
-      alert(
-        error.response?.data?.mensaje || "Error crítico al guardar la nómina.",
-      );
+      
+      // Capturamos el string directo que devuelve tu BadRequest("...") o el JSON de error
+      const mensajeError = typeof error.response?.data === "string" 
+        ? error.response.data 
+        : (error.response?.data?.mensaje || "Error crítico al guardar la nómina.");
+        
+      alert(mensajeError);
     }
   };
 
@@ -181,27 +217,47 @@ export const Personal = () => {
     }
   };
 
-  const verDocumentoPDF = (url) => {
-    if (!url) {
-      alert("Este candidato no tiene ningún documento PDF asociado.");
-      return;
+const verDocumentoPDF = (url) => {
+  if (!url) {
+    alert("Esta nómina no tiene ningún documento PDF asociado.");
+    return;
+  }
+
+  // Si la url ya viene completa con http, la abrimos directamente
+  if (url.startsWith("http")) {
+    window.open(url, "_blank");
+    return;
+  }
+
+  // 1. Intentamos obtener la URL base limpia directamente de la ventana del navegador
+  // Si tu frontend corre en http://localhost:3000, esto detectará "http://localhost:"
+  const puertoBackend = "5125"; // El puerto de tu API .NET
+  let baseUrl = `${window.location.protocol}//${window.location.hostname}:${puertoBackend}/`;
+
+  // 2. Por si acaso estás usando otra IP o producción, probamos con api.defaults.baseURL
+  if (api.defaults.baseURL) {
+    try {
+      // Usamos el constructor de URL nativo de JavaScript para extraer solo el HOST (ej: http://localhost:5125)
+      // Esto elimina '/api', '/api/' y cualquier ruta extra limpiamente.
+      const urlObj = new URL(api.defaults.baseURL);
+      baseUrl = `${urlObj.protocol}//${urlObj.host}/`;
+    } catch (e) {
+      console.error("Error parseando api.defaults.baseURL:", e);
     }
+  }
 
-    let baseUrl = api.defaults.baseURL
-      ? api.defaults.baseURL.replace("/api", "")
-      : "http://localhost:5000";
-    if (!baseUrl.endsWith("/")) baseUrl += "/";
+  // 3. Limpiamos la ruta del archivo (quitamos la barra inicial si existe)
+  let rutaLimpia = url;
+  if (rutaLimpia.startsWith("/")) {
+    rutaLimpia = rutaLimpia.substring(1);
+  }
 
-    let rutaLimpia = url;
-    if (rutaLimpia.startsWith("http")) {
-      window.open(rutaLimpia, "_blank");
-      return;
-    }
+  const urlFinal = `${baseUrl}${rutaLimpia}`;
+  console.log("🚀 URL FINAL GENERADA PARA EL PDF:", urlFinal);
 
-    if (rutaLimpia.startsWith("/")) rutaLimpia = rutaLimpia.substring(1);
-
-    window.open(`${baseUrl}${rutaLimpia}`, "_blank");
-  };
+  // Abrimos en pestaña nueva
+  window.open(urlFinal, "_blank");
+};
 
   const tienePrivilegiosEdicion =
     miRol === "Empresa" || miRol === "Admin" || miRol === "Ayuntamiento";
@@ -229,7 +285,7 @@ export const Personal = () => {
             </p>
           </div>
 
-          {tienePrivilegiosEdicion && misEmpresas.length > 0 && (
+            {tienePrivilegiosEdicion && (misEmpresas.length > 0 || miRol === "Admin" || miRol === "Empresa") && (
             <div style={styles.selectorContainer}>
               <label style={styles.selectorLabel}>
                 {miRol === "Admin" || miRol === "Ayuntamiento"
@@ -241,9 +297,15 @@ export const Personal = () => {
                 onChange={(e) => setEmpresaSeleccionadaId(e.target.value)}
                 style={styles.selectDropdown}
               >
+                {/* Si eres Admin o Ayuntamiento, damos la opción de ver todas */}
+                {(miRol === "Admin" || miRol === "Ayuntamiento") && (
+                  <option value="">-- Ver Todas --</option>
+                )}
+                
+                {/* Recorremos el array que ya viene normalizado y limpio de bajas */}
                 {misEmpresas.map((emp) => (
-                  <option key={emp.id || emp.Id} value={emp.id || emp.Id}>
-                    {emp.nombreEmpresa || emp.NombreEmpresa}
+                  <option key={emp.id} value={emp.id}>
+                    {emp.nombreEmpresa}
                   </option>
                 ))}
               </select>
@@ -359,19 +421,13 @@ export const Personal = () => {
                         "{pb.notas || pb.Notas || "Sin observaciones"}"
                       </td>
                       <td>
-                        <button
-                          className="btn-vesta secundario"
-                          style={{ padding: "4px 10px", fontSize: "12px" }}
-                          onClick={() =>
-                            verDocumentoPDF(
-                              pb.curriculumUrl ||
-                                pb.CurriculumUrl ||
-                                pb.CurriculumURl,
-                            )
-                          }
-                        >
-                          Ver CV
-                        </button>
+                      <button
+                        className="btn-vesta secundario"
+                        style={{ padding: "4px 10px", fontSize: "12px" }}
+                        onClick={() => verDocumentoPDF(pb.curriculumUrl || pb.CurriculumUrl || pb.curriculumURl)}
+                      >
+                        Ver CV
+                      </button>
                       </td>
                       {tienePrivilegiosEdicion && (
                         <td style={{ textAlign: "right" }}>

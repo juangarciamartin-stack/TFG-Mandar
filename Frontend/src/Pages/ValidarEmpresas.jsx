@@ -8,13 +8,10 @@ export const ValidarEmpresas = () => {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
+  const [propietariosSeleccionados, setPropietariosSeleccionados] = useState({});
 
-  const [propietariosSeleccionados, setPropietariosSeleccionados] = useState(
-    {},
-  );
-
+  // Detectamos el rol del usuario actual
   const miRol = localStorage.getItem("rol") || "Ayuntamiento";
 
   const cargarUsuarios = useCallback(async () => {
@@ -40,19 +37,63 @@ export const ValidarEmpresas = () => {
   const cargarSolicitudes = async () => {
     try {
       setLoading(true);
-      const data = await getEmpresasPendientes();
-      setSolicitudes(data);
+      setError("");
+      
+      const miRolActual = localStorage.getItem("rol") || "Ayuntamiento";
+      
+      // Intentamos recuperar el ID del ayuntamiento buscando todas las variantes posibles en el storage
+      const miAyuntamientoId = localStorage.getItem("ayuntamientoId") || 
+                               localStorage.getItem("AyuntamientoId") || 
+                               localStorage.getItem("idAyuntamiento");
 
+      // 1. Forzamos un id limpio. Si no existe o es Admin, va como null
+      const idParaFiltrar = miRolActual === "Admin" ? null : miAyuntamientoId;
+      
+      console.log("✈️ Enviando petición al servicio con idParaFiltrar:", idParaFiltrar);
+      const todas = await getEmpresasPendientes(idParaFiltrar);
+      
+      console.log("📥 Datos crudos recibidos del Backend:", todas);
+
+      if (!Array.isArray(todas)) {
+        console.error("El backend no devolvió un array válido:", todas);
+        setSolicitudes([]);
+        return;
+      }
+
+      let filtradas = [];
+
+      // 2. CAPA DE SEGURIDAD ABSOLUTA (Filtro en el Frontend)
+      // Si el backend por algún motivo ignora el parámetro y devuelve todo, 
+      // el frontend actuará como escudo y destruirá las empresas de otros ayuntamientos.
+      if (miRolActual === "Admin") {
+        filtradas = todas;
+      } else if (miAyuntamientoId && miAyuntamientoId !== "null" && miAyuntamientoId !== "undefined") {
+        console.log(`🛡️ Escudo de Frontend Activado. Filtrando solo para Ayuntamiento ID: ${miAyuntamientoId}`);
+        filtradas = todas.filter(sol => {
+          const solAytoId = sol.ayuntamientoId !== undefined ? sol.ayuntamientoId : sol.AyuntamientoId;
+          return Number(solAytoId) === Number(miAyuntamientoId);
+        });
+      } else {
+        // Si es un Ayuntamiento pero no tenemos su ID en el localStorage, por seguridad NO le mostramos nada
+        console.warn("⚠️ Usuario con rol Ayuntamiento no posee un AyuntamientoId válido en el LocalStorage.");
+        filtradas = [];
+      }
+
+      console.log("🎯 Solicitudes finales filtradas para mostrar:", filtradas);
+      setSolicitudes(filtradas);
+
+      // Mapeo inicial de propietarios
       const mapaInicial = {};
-      data.forEach((sol) => {
-        mapaInicial[sol.id || sol.Id] = sol.usuarioId || sol.UsuarioId || "";
+      filtradas.forEach((sol) => {
+        const currentId = sol.id || sol.Id;
+        const currentUserId = sol.usuarioId || sol.UsuarioId || "";
+        mapaInicial[currentId] = currentUserId;
       });
       setPropietariosSeleccionados(mapaInicial);
+
     } catch (err) {
-      console.error(err);
-      setError(
-        "No se pudieron recuperar las solicitudes de apertura fiscales.",
-      );
+      console.error("Error en cargarSolicitudes:", err);
+      setError("No se pudieron recuperar las solicitudes del servidor.");
     } finally {
       setLoading(false);
     }
@@ -63,7 +104,7 @@ export const ValidarEmpresas = () => {
     cargarUsuarios();
   }, [cargarUsuarios]);
 
-  const handleAccion = async (id, nuevoEstado) => {
+const handleAccion = async (id, nuevoEstado) => {
     try {
       setError("");
       setMensaje("");
@@ -81,9 +122,20 @@ export const ValidarEmpresas = () => {
         return;
       }
 
+      // Extraemos el ayuntamiento actual logueado de forma segura
+      const miAyuntamientoId = parseInt(
+        localStorage.getItem("ayuntamientoId") || 
+        localStorage.getItem("AyuntamientoId") || 
+        localStorage.getItem("idAyuntamiento"), 10
+      ) || null;
+
+      // ENVIAMOS EL DTO CORRETO QUE TU BACKEND ESPERA
       const res = await api.put(`/Empresas/${id}/cambiar-estado`, {
-        estado: nuevoEstado,
-        usuarioId: usuarioAsignadoId ? parseInt(usuarioAsignadoId) : undefined,
+        Estado: nuevoEstado,
+        RolUsuario: miRol,
+        AyuntamientoId: miAyuntamientoId,
+        // Mantener opcional si tu backend reutiliza este campo para el admin
+        UsuarioId: usuarioAsignadoId ? parseInt(usuarioAsignadoId, 10) : undefined
       });
 
       setMensaje(
@@ -96,7 +148,7 @@ export const ValidarEmpresas = () => {
       console.error(err);
       setError(
         err.response?.data?.mensaje ||
-          "Error crítico al actualizar el estado del expediente comercial.",
+          "Error crítico al actualizar el estado del expediente comercial. Verifica los permisos de administración.",
       );
     }
   };
@@ -121,13 +173,11 @@ export const ValidarEmpresas = () => {
         }}
       >
         <div className="view-intro" style={{ marginBottom: "24px" }}>
-          <h1
-            style={{ color: "#0f172a", fontSize: "28px", margin: "0 0 8px 0" }}
-          >
+          <h1 style={{ color: "#0f172a", fontSize: "28px", margin: "0 0 8px 0" }}>
             Auditoría y Validación de Empresas
           </h1>
           <p style={{ color: "#64748b", margin: 0 }}>
-            Panel de control del personal municipal para la inspection,
+            Panel de control del personal municipal para la inspección,
             aprobación legal y alta de nuevas contratas en la plataforma VESTA.
           </p>
         </div>
@@ -179,8 +229,7 @@ export const ValidarEmpresas = () => {
               color: "#64748b",
             }}
           >
-            No hay expedientes de empresas pendientes de validación jurídica en
-            este momento.
+            No hay expedientes de empresas pendientes de validación jurídica en este ayuntamiento en este momento.
           </div>
         ) : (
           <div
@@ -192,32 +241,15 @@ export const ValidarEmpresas = () => {
               border: "1px solid #e2e8f0",
             }}
           >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                textAlign: "left",
-              }}
-            >
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
               <thead>
-                <tr
-                  style={{
-                    backgroundColor: "#f8fafc",
-                    borderBottom: "2px solid #e2e8f0",
-                  }}
-                >
+                <tr style={{ backgroundColor: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                   <th style={styles.th}>Razón Social</th>
                   <th style={styles.th}>C.I.F.</th>
                   <th style={styles.th}>Dirección Fiscal</th>
                   <th style={styles.th}>Email Contacto</th>
-
-                  {miRol === "Admin" && (
-                    <th style={styles.th}>Asignar Titular Legal</th>
-                  )}
-
-                  <th style={{ ...styles.th, textAlign: "right" }}>
-                    Acciones Administrativas
-                  </th>
+                  {miRol === "Admin" && <th style={styles.th}>Asignar Titular Legal</th>}
+                  <th style={{ ...styles.th, textAlign: "right" }}>Acciones Administrativas</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,52 +258,26 @@ export const ValidarEmpresas = () => {
                   return (
                     <tr
                       key={currentId}
-                      style={{
-                        borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#f8fafc")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                      }
+                      style={{ borderBottom: "1px solid #f1f5f9", transition: "background-color 0.2s" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                     >
-                      <td
-                        style={{
-                          ...styles.td,
-                          fontWeight: "600",
-                          color: "#0f172a",
-                        }}
-                      >
+                      <td style={{ ...styles.td, fontWeight: "600", color: "#0f172a" }}>
                         {sol.nombreEmpresa || sol.NombreEmpresa}
                       </td>
                       <td style={styles.td}>
-                        <code
-                          style={{
-                            backgroundColor: "#f1f5f9",
-                            padding: "4px 8px",
-                            borderRadius: "4px",
-                            color: "#0f172a",
-                          }}
-                        >
+                        <code style={{ backgroundColor: "#f1f5f9", padding: "4px 8px", borderRadius: "4px", color: "#0f172a" }}>
                           {sol.cif || sol.Cif}
                         </code>
                       </td>
-                      <td style={styles.td}>
-                        {sol.direccion || sol.Direccion}
-                      </td>
-                      <td style={styles.td}>
-                        {sol.emailContacto || sol.EmailContacto}
-                      </td>
+                      <td style={styles.td}>{sol.direccion || sol.Direccion}</td>
+                      <td style={styles.td}>{sol.emailContacto || sol.EmailContacto}</td>
 
                       {miRol === "Admin" && (
                         <td style={styles.td}>
                           <select
                             value={propietariosSeleccionados[currentId] || ""}
-                            onChange={(e) =>
-                              handleSelectUsuario(currentId, e.target.value)
-                            }
+                            onChange={(e) => handleSelectUsuario(currentId, e.target.value)}
                             style={{
                               padding: "6px 10px",
                               border: "1px solid #cbd5e1",
@@ -285,8 +291,7 @@ export const ValidarEmpresas = () => {
                             <option value="">-- Cambiar Dueño Cuenta --</option>
                             {usuariosDisponibles.map((u) => (
                               <option key={u.Id || u.id} value={u.Id || u.id}>
-                                {u.Nombre || u.nombre || u.Email || u.email}{" "}
-                                (ID: {u.Id || u.id})
+                                {u.Nombre || u.nombre || u.Email || u.email} (ID: {u.Id || u.id})
                               </option>
                             ))}
                           </select>
@@ -296,23 +301,13 @@ export const ValidarEmpresas = () => {
                       <td style={{ ...styles.td, textAlign: "right" }}>
                         <button
                           onClick={() => handleAccion(currentId, "Rechazado")}
-                          style={{
-                            ...styles.actionBtn,
-                            backgroundColor: "#fee2e2",
-                            color: "#b91c1c",
-                            marginRight: "8px",
-                          }}
+                          style={{ ...styles.actionBtn, backgroundColor: "#fee2e2", color: "#b91c1c", marginRight: "8px" }}
                         >
                           Denegar
                         </button>
                         <button
                           onClick={() => handleAccion(currentId, "Aprobado")}
-                          style={{
-                            ...styles.actionBtn,
-                            backgroundColor: "#e0e7ff",
-                            color: "#4338ca",
-                            fontWeight: "700",
-                          }}
+                          style={{ ...styles.actionBtn, backgroundColor: "#e0e7ff", color: "#4338ca", fontWeight: "700" }}
                         >
                           Aprobar Alta
                         </button>
@@ -330,22 +325,7 @@ export const ValidarEmpresas = () => {
 };
 
 const styles = {
-  th: {
-    padding: "14px 18px",
-    fontSize: "13px",
-    fontWeight: "600",
-    color: "#475569",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-  },
+  th: { padding: "14px 18px", fontSize: "13px", fontWeight: "600", color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px" },
   td: { padding: "16px 18px", fontSize: "14px", color: "#334155" },
-  actionBtn: {
-    border: "none",
-    padding: "8px 14px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: "600",
-    transition: "opacity 0.2s",
-  },
+  actionBtn: { border: "none", padding: "8px 14px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "600", transition: "opacity 0.2s" },
 };

@@ -26,6 +26,8 @@ namespace VestaApi.Models
 
         [Required]
         public int UsuarioId { get; set; }
+        [Required(ErrorMessage = "El Ayuntamiento regulador es obligatorio.")]
+        public int AyuntamientoId { get; set; }
 
         public string EstadoAprobacion { get; set; } = "Pendiente";
 

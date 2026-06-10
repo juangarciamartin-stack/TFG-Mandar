@@ -58,26 +58,28 @@ export const Incidencias = () => {
     empresaId: "",
   });
 
-  const inicializarComponente = async () => {
+ const inicializarComponente = async () => {
     try {
       setLoading(true);
-      let listadoParaSelector = [];
+      
+      // 🚀 Llamamos directamente al endpoint unificado que ya gestiona los roles en el Backend
+      const listadoParaSelector = (await getMisContratasTrabajador()) || [];
 
-      if (esAdminOAyuntamiento) {
-        listadoParaSelector = (await getMisEmpresasSelector()) || [];
-      } else {
+      // 🔥 FILTRO: Solo dejamos pasar las empresas que NO estén pendientes de aceptación
+      const empresasFiltradas = listadoParaSelector.filter(
+        (emp) => (emp.estadoEmpresa || emp.EstadoEmpresa) !== "Pendiente"
+      );
 
-        listadoParaSelector = (await getMisContratasTrabajador()) || [];
-      }
+      setSelectorEmpresas(empresasFiltradas);
 
-      setSelectorEmpresas(listadoParaSelector);
-
-      if (listadoParaSelector.length > 0) {
+      if (empresasFiltradas.length > 0) {
         const primeraEmpresaId =
-          listadoParaSelector[0].id || listadoParaSelector[0].Id;
+          empresasFiltradas[0].id || empresasFiltradas[0].Id;
         setEmpresaSeleccionadaId(primeraEmpresaId);
-        setDatosEmpresaActiva(listadoParaSelector[0]);
+        setDatosEmpresaActiva(empresasFiltradas[0]);
       } else {
+        setEmpresaSeleccionadaId("");
+        setDatosEmpresaActiva(null);
         await cargarIncidenciasGeneral();
       }
     } catch (error) {
@@ -160,7 +162,7 @@ export const Incidencias = () => {
     }
   };
 
-  const abrirModal = async () => {
+ const abrirModal = async () => {
     setFormData({
       titulo: "",
       descripcion: "",
@@ -169,12 +171,13 @@ export const Incidencias = () => {
     });
 
     try {
+      // 🚀 Llamamos al endpoint unificado
+      const listaContratas = (await getMisContratasTrabajador()) || [];
       let opcionesEmpresa = [];
 
       if (esAdminOAyuntamiento) {
-        opcionesEmpresa = (await getMisEmpresasSelector()) || [];
+        opcionesEmpresa = listaContratas;
       } else {
-        const listaContratas = await getMisContratasTrabajador();
         opcionesEmpresa = listaContratas.filter(
           (e) =>
             e.tipoRelacion === "Empleado" ||
@@ -182,10 +185,15 @@ export const Incidencias = () => {
         );
       }
 
-      setEmpresasFormularioModal(opcionesEmpresa);
+      // 🔥 FILTRO: Nos aseguramos de limpiar también el modal de creación
+      const opcionesValidadas = opcionesEmpresa.filter(
+        (emp) => (emp.estadoEmpresa || emp.EstadoEmpresa) !== "Pendiente"
+      );
 
-      if (opcionesEmpresa.length > 0) {
-        const defaultId = opcionesEmpresa[0].id || opcionesEmpresa[0].Id;
+      setEmpresasFormularioModal(opcionesValidadas);
+
+      if (opcionesValidadas.length > 0) {
+        const defaultId = opcionesValidadas[0].id || opcionesValidadas[0].Id;
         setFormData((prev) => ({
           ...prev,
           empresaId: defaultId,

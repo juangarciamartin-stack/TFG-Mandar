@@ -3,11 +3,17 @@ import api from "./api";
 /**
  * Obtiene el listado completo de todas las empresas aceptadas/activas en el sistema
  */
-export const getEmpresas = async () => {
-  const response = await api.get("/Empresas");
+// En tu empresaService.js:
+export const getEmpresas = async (ayuntamientoId = null) => {
+  // Si viene el ID, la URL será: /api/Empresas?ayuntamientoId=3
+  // Si no viene, será simplemente: /api/Empresas (y el backend traerá todas)
+  const url = ayuntamientoId 
+    ? `/Empresas?ayuntamientoId=${ayuntamientoId}` 
+    : '/Empresas';
+    
+  const response = await api.get(url); // 'api' es tu instancia de axios
   return response.data;
 };
-
 /**
  * Modifica o actualiza los datos de una empresa existente
  */
@@ -34,9 +40,18 @@ export const solicitarCreacionEmpresa = async (formData) => {
 
 /**
  * Obtiene el listado de empresas pendientes de validación
+ * CORRECCIÓN: Validamos de forma estricta que ayuntamientoId exista, no sea null, ni string vacío
  */
-export const getEmpresasPendientes = async () => {
-  const response = await api.get("/Empresas/pendientes");
+export const getEmpresasPendientes = async (ayuntamientoId) => {
+  let url = "/Empresas/pendientes";
+  
+  // Forzamos un control estricto: que tenga valor real y que no sea la palabra "null" en string
+  if (ayuntamientoId !== null && ayuntamientoId !== undefined && ayuntamientoId !== "" && ayuntamientoId !== "null") {
+    url += `?ayuntamientoId=${ayuntamientoId}`;
+  }
+    
+  console.log(` [Axios] Realizando petición HTTP GET a: ${url}`);
+  const response = await api.get(url);
   return response.data;
 };
 
@@ -54,7 +69,6 @@ export const cambiarEstadoEmpresa = async (empresaId, estado) => {
  * Registra la postulación real de un trabajador enviando el archivo binario (FormData)
  */
 export const postularseAEmpresa = async (formDataObjeto) => {
-  // Pasamos el objeto FormData directamente y configuramos el tipo multipart/form-data
   const response = await api.post("/Empresas/postularse", formDataObjeto, {
     headers: {
       "Content-Type": "multipart/form-data",

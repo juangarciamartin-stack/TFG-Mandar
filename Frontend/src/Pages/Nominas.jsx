@@ -16,32 +16,45 @@ export const Nominas = () => {
   const esAdminOAyuntamiento = miRol === "Admin" || miRol === "Ayuntamiento";
   const tienePrivilegiosPlantilla = esAdminOAyuntamiento || miRol === "Empresa";
 
-  useEffect(() => {
-    const cargarEmpresasSelector = async () => {
-      if (!miUsuarioId) return;
-      try {
-        let res;
-        if (esAdminOAyuntamiento) {
-          res = await api.get("/Usuarios/mis-empresas-selector");
-        } else if (miRol === "Empresa") {
-          res = await api.get(`/Empresas/mis-empresas-gestor/${miUsuarioId}`);
-        } else {
-          return;
-        }
-
-        setMisEmpresas(res.data);
-        if (res.data.length > 0) {
-          setEmpresaSeleccionadaId(res.data[0].id || res.data[0].Id);
-        }
-      } catch (error) {
-        console.error(
-          "Error al recuperar las empresas para el selector:",
-          error,
-        );
+useEffect(() => {
+  const cargarEmpresasSelector = async () => {
+    if (!miUsuarioId) return;
+    try {
+      let res;
+      
+      // 1. Hacemos las llamadas correctas según el rol
+      if (esAdminOAyuntamiento) {
+        res = await api.get("/Empresas"); 
+      } else if (miRol === "Empresa") {
+        res = await api.get(`/Empresas/mis-empresas-gestor/${miUsuarioId}`);
+      } else {
+        return;
       }
-    };
-    cargarEmpresasSelector();
-  }, [miUsuarioId, miRol]);
+
+      let empresasNormalizadas = [];
+      
+      if (res.data && Array.isArray(res.data)) {
+        // 2. UNIFICAMOS las propiedades para que convivan bien los datos de Admin y Empresa
+        empresasNormalizadas = res.data.map(emp => ({
+          id: emp.id ?? emp.Id ?? emp.idEmpresa ?? emp.IdEmpresa,
+          nombreEmpresa: emp.nombreEmpresa ?? emp.NombreEmpresa ?? emp.nombre ?? emp.Nombre
+        }));
+      }
+
+      // 3. Guardamos TODO el array normalizado en el estado (sin filtrar bajas)
+      setMisEmpresas(empresasNormalizadas);
+      
+      // 4. Auto-seleccionamos la primera empresa si existen registros
+      if (empresasNormalizadas.length > 0) {
+        setEmpresaSeleccionadaId(empresasNormalizadas[0].id);
+      }
+    } catch (error) {
+      console.error("Error al recuperar las empresas para el selector en Nóminas:", error);
+    }
+  };
+  
+  cargarEmpresasSelector();
+}, [miUsuarioId, miRol, esAdminOAyuntamiento]);
 
   useEffect(() => {
     const cargarDatosSeguros = async () => {
@@ -51,14 +64,12 @@ export const Nominas = () => {
 
           if (empresaSeleccionadaId) {
             const filtradas = resGlobal.data.filter(
-              (n) =>
-                (n.empresaId || n.EmpresaId) ===
-                parseInt(empresaSeleccionadaId),
+              (n) => (n.empresaId || n.EmpresaId)?.toString() === empresaSeleccionadaId.toString()
             );
             setNominasPlantilla(filtradas);
           } else {
-            setNominasPlantilla(resGlobal.data);
-          }
+              setNominasPlantilla(resGlobal.data);
+            }
         }
 
         if (miRol === "Empresa") {
@@ -94,20 +105,33 @@ export const Nominas = () => {
     cargarDatosSeguros();
   }, [miRol, pestañaActiva, empresaSeleccionadaId]);
 
-  const descargarOVerPdf = (idNomina) => {
+ const descargarOVerPdf = async (idNomina) => {
     if (!idNomina) {
       alert("ID de registro no válido.");
       return;
     }
 
-    let baseUrl = api.defaults.baseURL
-      ? api.defaults.baseURL.replace("/api", "")
-      : "http://localhost:5125";
-    if (!baseUrl.endsWith("/")) baseUrl += "/";
+    try {
+      // 1. Le pedimos el archivo a Axios indicando que esperamos datos binarios (blob)
+      // Axios inyectará automáticamente el Token de autorización que usas en el resto de la app
+      const respuesta = await api.get(`/Nominas/descargar/${idNomina}`, {
+        responseType: 'blob' 
+      });
 
-    const urlDescarga = `${baseUrl}api/Nominas/descargar/${idNomina}`;
-    console.log("Abriendo flujo de descarga oficial:", urlDescarga);
-    window.open(urlDescarga, "_blank");
+      // 2. Creamos una URL local temporal para ese bloque de datos binarios
+      const blob = new Blob([respuesta.data], { type: 'application/pdf' });
+      const urlBlob = window.URL.createObjectURL(blob);
+
+      // 3. Abrimos esa URL temporal en una pestaña nueva (Se abrirá el PDF instantáneamente)
+      window.open(urlBlob, '_blank');
+
+      // 4. Limpieza opcional de memoria pasados unos segundos
+      setTimeout(() => window.URL.revokeObjectURL(urlBlob), 100);
+
+    } catch (error) {
+      console.error("Error al intentar descargar el PDF de la nómina:", error);
+      alert("No se pudo descargar o abrir el archivo PDF. Verifica los permisos o el estado del servidor.");
+    }
   };
   return (
     <div className="vista-page-container">
@@ -132,16 +156,14 @@ export const Nominas = () => {
             </p>
           </div>
 
-          {tienePrivilegiosPlantilla &&
-            (!esAdminOAyuntamiento ? pestañaActiva === "empleados" : true) &&
-            misEmpresas.length > 0 && (
+            {tienePrivilegiosPlantilla && (!esAdminOAyuntamiento ? pestañaActiva === "empleados" : true) && (misEmpresas.length > 0 || esAdminOAyuntamiento) && (
               <div style={styles.selectorContainer}>
                 <label style={styles.selectorLabel}>
                   {esAdminOAyuntamiento
                     ? "Supervisar Lote / Empresa:"
                     : "Filtrar Plantilla de:"}
                 </label>
-                <select
+               <select
                   value={empresaSeleccionadaId}
                   onChange={(e) => setEmpresaSeleccionadaId(e.target.value)}
                   style={styles.selectDropdown}
@@ -149,9 +171,11 @@ export const Nominas = () => {
                   {esAdminOAyuntamiento && (
                     <option value="">-- Ver Todas --</option>
                   )}
+                  
+                  {/* Mapeo limpio usando las propiedades unificadas en minúscula */}
                   {misEmpresas.map((emp) => (
-                    <option key={emp.id || emp.Id} value={emp.id || emp.Id}>
-                      {emp.nombreEmpresa || emp.NombreEmpresa}
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombreEmpresa}
                     </option>
                   ))}
                 </select>
@@ -241,12 +265,7 @@ export const Nominas = () => {
                       <td style={{ textAlign: "right" }}>
                         <button
                           className="btn-vesta secundario"
-                          onClick={() =>
-                            descargarOVerPdf(
-                              n.id || n.Id,
-                              n.rutaArchivoPDF || n.RutaArchivoPDF,
-                            )
-                          }
+                          onClick={() => descargarOVerPdf(n.id || n.Id, n.rutaArchivoPDF || n.RutaArchivoPDF)}
                         >
                           Ver PDF
                         </button>

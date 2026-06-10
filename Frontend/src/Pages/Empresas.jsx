@@ -74,10 +74,20 @@ export const Empresas = () => {
     }
   }, [miRol]);
 
+  // --- MÉTODOS DE CARGA MODIFICADO ---
   const cargarDatos = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getEmpresas();
+
+      // 1. CAPTURAR EL ID SI EL ROL ES AYUNTAMIENTO
+      // Si es Ayuntamiento, le pasamos su ID para que el backend filtre. 
+      // Si es Admin, Empresa o Trabajador, pasamos null para que el backend devuelva TODO.
+      const miAyuntamientoId = miRol === "Ayuntamiento" 
+        ? parseInt(localStorage.getItem("idAyuntamiento"), 10) || null 
+        : null;
+
+      // 2. PASAMOS EL ID A LA FUNCIÓN DEL SERVICIO
+      const data = await getEmpresas(miAyuntamientoId);
       const listaEmpresas = Array.isArray(data) ? data : data?.data || [];
 
       // RESOLUCIÓN PARALELA CORREGIDA: Sin llamadas fantasma
@@ -224,23 +234,52 @@ export const Empresas = () => {
         await deleteEmpresa(id);
         alert("Empresa procesada correctamente (Baja registrada).");
         cargarDatos();
-      } catch {
-        alert("No se puede tramitar la baja de la empresa porque contiene vinculaciones, lotes o personal activo.");
+      } catch (error) {
+        if (error.response?.status === 409) {
+          alert(error.response.data?.mensaje || "No se puede dar de baja: existen lotes activos asignados.");
+        } else {
+          alert("No se puede tramitar la baja de la empresa.");
+        }
       }
     }
   };
 
-  const handleReactivarEmpresa = async (id) => {
-    if (window.confirm("¿Deseas revocar la baja y reactivar la homologación oficial de esta empresa?")) {
+const handleReactivarEmpresa = async (emp) => {
+    if (window.confirm(`¿Deseas revocar la baja y reactivar la homologación oficial de ${emp.nombreEmpresa}?`)) {
       try {
-        await api.put(`/Empresas/${id}/cambiar-estado`, { Estado: "Aprobado" });
+        // 1. Intentamos recuperar el ID desde el almacenamiento local
+        let miAyuntamientoId = 
+          parseInt(localStorage.getItem("idAyuntamiento"), 10) || 
+          parseInt(localStorage.getItem("ayuntamientoId"), 10) || 
+          null;
+
+        // 2. 🛡️ SALVAGUARDA PARA EL ADMIN: Si es Admin y viene null, heredamos el ID que ya tenía la propia empresa
+        if (!miAyuntamientoId && miRol === "Admin") {
+          miAyuntamientoId = emp.ayuntamientoId || emp.AyuntamientoId || null;
+        }
+
+        console.log("Enviando reactivación con Ayuntamiento ID:", miAyuntamientoId);
+
+        // 3. Si sigue siendo null y no es Admin, entonces sí bloqueamos de forma segura
+        if (!miAyuntamientoId && miRol !== "Admin") {
+          alert("Error local: No se ha detectado el ID de tu Ayuntamiento en la sesión. Por favor, reasigna tu login.");
+          return;
+        }
+
+        // Enviamos el estado, el rol y el id del ayuntamiento real en el body (o null si el Admin crea una empresa global)
+        await api.put(`/Empresas/${emp.id}/cambiar-estado`, { 
+          Estado: "Aprobado",
+          RolUsuario: miRol,
+          AyuntamientoId: miAyuntamientoId
+        });
+
         alert("¡Empresa dada de alta con éxito! Su gestor vuelve a tener el rol activo.");
         cargarDatos();
       } catch (error) {
         if (error.response && error.response.status === 400) {
           const mensajeServidor = error.response.data?.mensaje || error.response.data;
           alert("CONFIGURACIÓN DENEGADA POR PROTOCOLO VESTA\n\n" + 
-            (typeof mensajeServidor === "string" ? mensajeServidor : "El usuario titular posee actualmente un contrato laboral de operario activo."));
+            (typeof mensajeServidor === "string" ? mensajeServidor : "No tienes permisos sobre esta empresa o existen incompatibilidades operativas."));
         } else {
           alert("Error de comunicación con el servidor al intentar dar de alta la adjudicataria.");
         }
@@ -262,24 +301,32 @@ export const Empresas = () => {
         });
         alert("Solicitud de baja procesada. La empresa se ha trasladado al archivo histórico.");
         cargarDatos();
-      } catch {
-        alert("Error al comunicar la solicitud de cese administrativo.");
-      }
+        } catch (error) {
+          if (error.response?.status === 409) {
+            alert("No se puede dar de baja: " + (error.response.data?.mensaje || "existen lotes activos asignados a esta empresa."));
+          } else {
+            alert("Error al comunicar la solicitud de cese administrativo.");
+          }
+        }
     }
   };
 
-  const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
+const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
     if (!empresaId) {
       alert("Error interno: No se pudo identificar el código de la empresa.");
       return;
     }
     if (window.confirm(`¿Estás seguro de que deseas tramitar tu baja voluntaria de "${nombreEmpresa}"?`)) {
       try {
-        await api.put(`/Empresas/dimitir-trabajador/${miUsuarioId}?empresaId=${empresaId}`);
-        alert("Gestión completada. Has causado baja voluntaria.");
+        // Reutilizamos tu endpoint DELETE del backend que elimina la relación contractual
+        // Ruta física en C#: api/Empresas/{empresaId}/despedir-trabajador/{usuarioId}
+        await api.delete(`/Empresas/${empresaId}/despedir-trabajador/${miUsuarioId}`);
+        
+        alert("Gestión completada. Has causado baja voluntaria con éxito.");
         setVistaActiva("todas");
         cargarDatos();
       } catch (error) {
+        console.error("Error al procesar la baja voluntaria:", error.response);
         alert(error.response?.data?.mensaje || "No se pudo tramitar tu dimisión.");
       }
     }
@@ -295,7 +342,7 @@ export const Empresas = () => {
     setMostrarModalCV(true);
   };
 
-  const handleSubmitPostulacionReal = async (e) => {
+const handleSubmitPostulacionReal = async (e) => {
     e.preventDefault();
     if (!formCV.archivo) {
       alert("Por favor, selecciona un archivo PDF válido.");
@@ -303,9 +350,15 @@ export const Empresas = () => {
     }
     try {
       const datosParaEnvio = new FormData();
+      
       datosParaEnvio.append("usuarioId", miUsuarioId);
       datosParaEnvio.append("empresaId", empresaPostularSeleccionada.id);
-      datosParaEnvio.append("notes", formCV.notas ? formCV.notas.trim() : "");
+      
+      const textoNotas = formCV.notas && formCV.notas.trim() !== "" 
+        ? formCV.notas.trim() 
+        : "Sin notas adicionales.";
+        
+      datosParaEnvio.append("notas", textoNotas);
       datosParaEnvio.append("curriculumFile", formCV.archivo);
 
       await postularseAEmpresa(datosParaEnvio);
@@ -313,7 +366,31 @@ export const Empresas = () => {
       cerrarModalCV();
       cargarDatos();
     } catch (error) {
-      alert(error.response?.data?.mensaje || "Error al enviar la candidatura.");
+      console.error("Detalles del error del servidor:", error.response?.data);
+      
+      // 1. Capturamos el mensaje que envía el backend (ya sea en .mensaje, .message o dentro de errors)
+      const dataServidor = error.response?.data;
+      const mensajeServidor = typeof dataServidor === "string" 
+        ? dataServidor 
+        : dataServidor?.mensaje || dataServidor?.message || "";
+
+      // 2. Comprobamos si el mensaje o el estado indican que ya está registrado
+      if (
+        error.response?.status === 409 || // Código HTTP para Conflicto (Muy común para duplicados)
+        mensajeServidor.toLowerCase().includes("ya") || 
+        mensajeServidor.toLowerCase().includes("existe") ||
+        mensajeServidor.toLowerCase().includes("postulado")
+      ) {
+        alert(`AVISO DE ADMISIÓN:\n\nYa has enviado tu currículum a ${empresaPostularSeleccionada?.nombreEmpresa} previamente. Tu candidatura ya se encuentra en su base de datos.`);
+      } else if (dataServidor?.errors?.notas) {
+        // Mantenemos la alerta por si las notas fallaran por otra razón
+        alert("Error en las notas:\n" + dataServidor.errors.notas[0]);
+      } else {
+        // Alerta genérica por si cae el servidor o hay otro problema técnico
+        alert("Información del sistema:\n" + (mensajeServidor || "No se ha podido procesar la candidatura en este momento."));
+      }
+      
+      cerrarModalCV(); // Cerramos el modal de todas formas para limpiar la pantalla
     }
   };
 
@@ -372,13 +449,14 @@ export const Empresas = () => {
                 Trabajando en...
               </button>
             )}
-
-            <button
-              onClick={() => setVistaActiva("todas")}
-              style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
-            >
-              Catálogo General (Buscar Empleo)
-            </button>
+            {miRol === "Trabajador" && (
+              <button
+                onClick={() => setVistaActiva("todas")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
+              >
+                Catálogo General (Buscar Empleo)
+              </button>
+            )}
           </div>
         )}
 
@@ -482,9 +560,26 @@ export const Empresas = () => {
                               <button className="btn-vesta secundario" onClick={() => prepararEdicion(emp)}>Editar</button>
                             )}
                             {vistaActiva === "ceses" ? (
-                              <button className="btn-vesta profesional" style={{ backgroundColor: "#10b981", color: "#fff", padding: "6px 12px", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: "600" }} onClick={() => handleReactivarEmpresa(emp.id)}>
-                                Dar de Alta
-                              </button>
+                              // CONDICIÓN MEJORADA: Comprobamos si es Admin, o si es Ayuntamiento y coincide el ID (soportando tanto A mayúscula como minúscula)
+                              miRol === "Admin" || 
+                              (miRol === "Ayuntamiento" && 
+                                (
+                                  // Compara ignorando si el backend envió el dato en minúsculas o mayúsculas
+String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.getItem("idAyuntamiento") || localStorage.getItem("ayuntamientoId"))
+                                )
+                              ) ? (
+                                <button 
+                                  className="btn-vesta profesional" 
+                                  style={{ backgroundColor: "#10b981", color: "#fff", padding: "6px 12px", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: "600" }} 
+                                  onClick={() => handleReactivarEmpresa(emp)}
+                                >
+                                  Dar de Alta
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>
+                                  Bloqueado por otro Municipio
+                                </span>
+                              )
                             ) : (
                               miRol === "Admin" && <button className="btn-vesta peligro" onClick={() => handleBaja(emp.id)}>Dar de Baja</button>
                             )}
