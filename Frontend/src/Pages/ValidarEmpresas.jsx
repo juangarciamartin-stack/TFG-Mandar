@@ -11,7 +11,6 @@ export const ValidarEmpresas = () => {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [propietariosSeleccionados, setPropietariosSeleccionados] = useState({});
 
-  // Detectamos el rol del usuario actual
   const miRol = localStorage.getItem("rol") || "Ayuntamiento";
 
   const cargarUsuarios = useCallback(async () => {
@@ -41,18 +40,12 @@ export const ValidarEmpresas = () => {
       
       const miRolActual = localStorage.getItem("rol") || "Ayuntamiento";
       
-      // Intentamos recuperar el ID del ayuntamiento buscando todas las variantes posibles en el storage
-      const miAyuntamientoId = localStorage.getItem("ayuntamientoId") || 
-                               localStorage.getItem("AyuntamientoId") || 
-                               localStorage.getItem("idAyuntamiento");
+      const miAyuntamientoId = localStorage.getItem("ayuntamientoId") || localStorage.getItem("AyuntamientoId") || localStorage.getItem("idAyuntamiento");
 
-      // 1. Forzamos un id limpio. Si no existe o es Admin, va como null
       const idParaFiltrar = miRolActual === "Admin" ? null : miAyuntamientoId;
       
-      console.log("✈️ Enviando petición al servicio con idParaFiltrar:", idParaFiltrar);
       const todas = await getEmpresasPendientes(idParaFiltrar);
       
-      console.log("📥 Datos crudos recibidos del Backend:", todas);
 
       if (!Array.isArray(todas)) {
         console.error("El backend no devolvió un array válido:", todas);
@@ -62,27 +55,20 @@ export const ValidarEmpresas = () => {
 
       let filtradas = [];
 
-      // 2. CAPA DE SEGURIDAD ABSOLUTA (Filtro en el Frontend)
-      // Si el backend por algún motivo ignora el parámetro y devuelve todo, 
-      // el frontend actuará como escudo y destruirá las empresas de otros ayuntamientos.
       if (miRolActual === "Admin") {
         filtradas = todas;
       } else if (miAyuntamientoId && miAyuntamientoId !== "null" && miAyuntamientoId !== "undefined") {
-        console.log(`🛡️ Escudo de Frontend Activado. Filtrando solo para Ayuntamiento ID: ${miAyuntamientoId}`);
         filtradas = todas.filter(sol => {
           const solAytoId = sol.ayuntamientoId !== undefined ? sol.ayuntamientoId : sol.AyuntamientoId;
           return Number(solAytoId) === Number(miAyuntamientoId);
         });
       } else {
-        // Si es un Ayuntamiento pero no tenemos su ID en el localStorage, por seguridad NO le mostramos nada
-        console.warn("⚠️ Usuario con rol Ayuntamiento no posee un AyuntamientoId válido en el LocalStorage.");
+        console.warn("Usuario con rol Ayuntamiento no posee un AyuntamientoId válido en el LocalStorage.");
         filtradas = [];
       }
 
-      console.log("🎯 Solicitudes finales filtradas para mostrar:", filtradas);
       setSolicitudes(filtradas);
 
-      // Mapeo inicial de propietarios
       const mapaInicial = {};
       filtradas.forEach((sol) => {
         const currentId = sol.id || sol.Id;
@@ -122,19 +108,16 @@ const handleAccion = async (id, nuevoEstado) => {
         return;
       }
 
-      // Extraemos el ayuntamiento actual logueado de forma segura
       const miAyuntamientoId = parseInt(
         localStorage.getItem("ayuntamientoId") || 
         localStorage.getItem("AyuntamientoId") || 
         localStorage.getItem("idAyuntamiento"), 10
       ) || null;
 
-      // ENVIAMOS EL DTO CORRETO QUE TU BACKEND ESPERA
       const res = await api.put(`/Empresas/${id}/cambiar-estado`, {
         Estado: nuevoEstado,
         RolUsuario: miRol,
         AyuntamientoId: miAyuntamientoId,
-        // Mantener opcional si tu backend reutiliza este campo para el admin
         UsuarioId: usuarioAsignadoId ? parseInt(usuarioAsignadoId, 10) : undefined
       });
 

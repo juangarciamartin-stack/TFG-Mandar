@@ -23,7 +23,7 @@ namespace VestaApi.Controllers
             _context = context;
         }
 
-        // GET: api/Incidencias/empresa/5
+        // GET: api/Incidencias/empresa
         [HttpGet("empresa/{empresaId}")]
         public async Task<IActionResult> GetIncidenciasPorEmpresa(int empresaId)
         {
@@ -57,7 +57,7 @@ namespace VestaApi.Controllers
             }
         }
 
-       // GET: api/Incidencias/mis-contratas-trabajador
+
         // GET: api/Incidencias/mis-contratas-trabajador
         [HttpGet("mis-contratas-trabajador")]
         public async Task<IActionResult> GetMisContratasTrabajador()
@@ -66,14 +66,11 @@ namespace VestaApi.Controllers
             if (string.IsNullOrEmpty(usuarioIdStr)) return Unauthorized();
             int usuarioId = int.Parse(usuarioIdStr);
 
-            // Recuperamos el rol real del usuario desde la base de datos para validar los permisos
             var usuarioReal = await _context.Usuarios.FindAsync(usuarioId);
             string rolReal = usuarioReal?.Rol ?? "Trabajador";
 
             try
             {
-                // 🛡️ REGLA PARA EL ADMIN O AYUNTAMIENTO: Tienen acceso a todo el catálogo de empresas activas
-// 🛡️ REGLA PARA EL ADMIN O AYUNTAMIENTO: Tienen acceso a todo el catálogo de empresas activas
                 if (rolReal == "Admin" || rolReal == "Ayuntamiento")
                 {
                     var todasLasEmpresasActivas = await _context.Empresas
@@ -89,7 +86,6 @@ namespace VestaApi.Controllers
                     return Ok(todasLasEmpresasActivas);
                 }
 
-                // --- LÓGICA ORIGINAL PARA TRABAJADORES Y EMPRESAS (No se toca para no romper nada) ---
                 var empresasDondeTrabajo = await _context.UsuarioEmpresas
                     .Where(ue => ue.UsuarioId == usuarioId && 
                                  (ue.EstadoSolicitud == "Contratado" || ue.EstadoSolicitud == "contratado"))
@@ -120,7 +116,8 @@ namespace VestaApi.Controllers
                 return StatusCode(500, new { mensaje = "Error al compilar el registro de contratas." });
             }
         }
-        // GET: api/Incidencias?empresaId=5
+
+        // GET: api/Incidencias?empresaId
         [HttpGet]
         public async Task<IActionResult> GetIncidencias([FromQuery] int? empresaId)
         {
@@ -192,7 +189,7 @@ namespace VestaApi.Controllers
             }
         }
 
-        // GET: api/Incidencias/5
+        // GET: api/Incidencias
         [HttpGet("{id}")]
         public async Task<ActionResult<Incidencia>> GetIncidencia(int id)
         {
@@ -216,7 +213,7 @@ namespace VestaApi.Controllers
             return CreatedAtAction("GetIncidencia", new { id = incidencia.Id }, incidencia);
         }
 
-        // PUT: api/Incidencias/5
+        // PUT: api/Incidencias
         [HttpPut("{id}")]
         public async Task<IActionResult> PutIncidencia(int id, Incidencia incidencia)
         {
@@ -257,7 +254,7 @@ namespace VestaApi.Controllers
             return NoContent();
         }
 
-        // DELETE: api/Incidencias/5
+        // DELETE: api/Incidencias
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteIncidencia(int id)
         {

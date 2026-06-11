@@ -62,10 +62,8 @@ export const Incidencias = () => {
     try {
       setLoading(true);
       
-      // 🚀 Llamamos directamente al endpoint unificado que ya gestiona los roles en el Backend
       const listadoParaSelector = (await getMisContratasTrabajador()) || [];
 
-      // 🔥 FILTRO: Solo dejamos pasar las empresas que NO estén pendientes de aceptación
       const empresasFiltradas = listadoParaSelector.filter(
         (emp) => (emp.estadoEmpresa || emp.EstadoEmpresa) !== "Pendiente"
       );
@@ -171,7 +169,6 @@ export const Incidencias = () => {
     });
 
     try {
-      // 🚀 Llamamos al endpoint unificado
       const listaContratas = (await getMisContratasTrabajador()) || [];
       let opcionesEmpresa = [];
 
@@ -185,7 +182,6 @@ export const Incidencias = () => {
         );
       }
 
-      // 🔥 FILTRO: Nos aseguramos de limpiar también el modal de creación
       const opcionesValidadas = opcionesEmpresa.filter(
         (emp) => (emp.estadoEmpresa || emp.EstadoEmpresa) !== "Pendiente"
       );
@@ -454,7 +450,7 @@ export const Incidencias = () => {
                                   handleCambiarEstado(inc, "En Proceso")
                                 }
                               >
-                                En Reparación 🛠️
+                                En Reparación 
                               </button>
                             )}
                           {inc.estado !== "Resuelto" && (
@@ -480,7 +476,7 @@ export const Incidencias = () => {
                                 fontWeight: "600",
                               }}
                             >
-                              Solucionado ✅
+                              Solucionado 
                             </span>
                           )}
                         </>

@@ -13,11 +13,8 @@ import { getMisContratasTrabajador } from "../services/incidenciaService";
 export const Empresas = () => {
   const miRol = localStorage.getItem("rol") || "Trabajador";
   const miUsuarioId = parseInt(localStorage.getItem("usuarioId"), 10) || 0;
-
-  // Referencia para limpiar el input de tipo file correctamente
   const fileInputRef = useRef(null);
 
-  // --- ESTADOS ---
   const [todasLasEmpresas, setTodasLasEmpresas] = useState([]);
   const [empresasFiltradas, setEmpresasFiltradas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +23,7 @@ export const Empresas = () => {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [idEmpresaContratado, setIdEmpresaContratado] = useState([]);
 
-  // Inicialización inteligente por Rol
+
   const [vistaActiva, setVistaActiva] = useState(() => {
     if (miRol === "Admin" || miRol === "Ayuntamiento") return "activas";
     if (miRol === "Trabajador") return "todas"; 
@@ -45,7 +42,7 @@ export const Empresas = () => {
     usuarioId: "",
   });
 
-  // --- DERIVADOS ---
+
   const tieneEmpresaActiva = todasLasEmpresas.some(
     (e) => e.usuarioId === miUsuarioId && e.estadoAprobacion === "Aprobado",
   );
@@ -54,7 +51,7 @@ export const Empresas = () => {
     (e) => idEmpresaContratado.includes(e.id) && e.estadoAprobacion === "Aprobado",
   );
 
-  // --- MÉTODOS DE CARGA ---
+
   const cargarUsuarios = useCallback(async () => {
     if (miRol !== "Admin") return;
     try {
@@ -74,23 +71,18 @@ export const Empresas = () => {
     }
   }, [miRol]);
 
-  // --- MÉTODOS DE CARGA MODIFICADO ---
+
   const cargarDatos = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 1. CAPTURAR EL ID SI EL ROL ES AYUNTAMIENTO
-      // Si es Ayuntamiento, le pasamos su ID para que el backend filtre. 
-      // Si es Admin, Empresa o Trabajador, pasamos null para que el backend devuelva TODO.
       const miAyuntamientoId = miRol === "Ayuntamiento" 
         ? parseInt(localStorage.getItem("idAyuntamiento"), 10) || null 
         : null;
 
-      // 2. PASAMOS EL ID A LA FUNCIÓN DEL SERVICIO
       const data = await getEmpresas(miAyuntamientoId);
       const listaEmpresas = Array.isArray(data) ? data : data?.data || [];
 
-      // RESOLUCIÓN PARALELA CORREGIDA: Sin llamadas fantasma
       const empresasConDetalles = await Promise.all(
         listaEmpresas.map(async (empresa) => {
           try {
@@ -143,7 +135,6 @@ export const Empresas = () => {
     cargarUsuarios();
   }, [cargarDatos, cargarUsuarios]);
 
-  // --- FILTRADO EN MEMORIA ---
   useEffect(() => {
     if (miRol === "Admin" || miRol === "Ayuntamiento") {
       if (vistaActiva === "activas") {
@@ -170,7 +161,6 @@ export const Empresas = () => {
     }
   }, [vistaActiva, todasLasEmpresas, idEmpresaContratado, miRol, miUsuarioId]);
 
-  // --- CONTROLADORES DE INTERFAZ ---
   const abrirModalCrear = () => {
     setEditandoId(null);
     setFormData({ nombreEmpresa: "", cif: "", direccion: "", emailContacto: "", usuarioId: "" });
@@ -247,26 +237,22 @@ export const Empresas = () => {
 const handleReactivarEmpresa = async (emp) => {
     if (window.confirm(`¿Deseas revocar la baja y reactivar la homologación oficial de ${emp.nombreEmpresa}?`)) {
       try {
-        // 1. Intentamos recuperar el ID desde el almacenamiento local
         let miAyuntamientoId = 
           parseInt(localStorage.getItem("idAyuntamiento"), 10) || 
           parseInt(localStorage.getItem("ayuntamientoId"), 10) || 
           null;
 
-        // 2. 🛡️ SALVAGUARDA PARA EL ADMIN: Si es Admin y viene null, heredamos el ID que ya tenía la propia empresa
         if (!miAyuntamientoId && miRol === "Admin") {
           miAyuntamientoId = emp.ayuntamientoId || emp.AyuntamientoId || null;
         }
 
         console.log("Enviando reactivación con Ayuntamiento ID:", miAyuntamientoId);
 
-        // 3. Si sigue siendo null y no es Admin, entonces sí bloqueamos de forma segura
         if (!miAyuntamientoId && miRol !== "Admin") {
           alert("Error local: No se ha detectado el ID de tu Ayuntamiento en la sesión. Por favor, reasigna tu login.");
           return;
         }
 
-        // Enviamos el estado, el rol y el id del ayuntamiento real en el body (o null si el Admin crea una empresa global)
         await api.put(`/Empresas/${emp.id}/cambiar-estado`, { 
           Estado: "Aprobado",
           RolUsuario: miRol,
@@ -318,8 +304,6 @@ const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
     }
     if (window.confirm(`¿Estás seguro de que deseas tramitar tu baja voluntaria de "${nombreEmpresa}"?`)) {
       try {
-        // Reutilizamos tu endpoint DELETE del backend que elimina la relación contractual
-        // Ruta física en C#: api/Empresas/{empresaId}/despedir-trabajador/{usuarioId}
         await api.delete(`/Empresas/${empresaId}/despedir-trabajador/${miUsuarioId}`);
         
         alert("Gestión completada. Has causado baja voluntaria con éxito.");
@@ -368,33 +352,28 @@ const handleSubmitPostulacionReal = async (e) => {
     } catch (error) {
       console.error("Detalles del error del servidor:", error.response?.data);
       
-      // 1. Capturamos el mensaje que envía el backend (ya sea en .mensaje, .message o dentro de errors)
       const dataServidor = error.response?.data;
       const mensajeServidor = typeof dataServidor === "string" 
         ? dataServidor 
         : dataServidor?.mensaje || dataServidor?.message || "";
 
-      // 2. Comprobamos si el mensaje o el estado indican que ya está registrado
       if (
-        error.response?.status === 409 || // Código HTTP para Conflicto (Muy común para duplicados)
+        error.response?.status === 409 || 
         mensajeServidor.toLowerCase().includes("ya") || 
         mensajeServidor.toLowerCase().includes("existe") ||
         mensajeServidor.toLowerCase().includes("postulado")
       ) {
         alert(`AVISO DE ADMISIÓN:\n\nYa has enviado tu currículum a ${empresaPostularSeleccionada?.nombreEmpresa} previamente. Tu candidatura ya se encuentra en su base de datos.`);
       } else if (dataServidor?.errors?.notas) {
-        // Mantenemos la alerta por si las notas fallaran por otra razón
         alert("Error en las notas:\n" + dataServidor.errors.notas[0]);
       } else {
-        // Alerta genérica por si cae el servidor o hay otro problema técnico
         alert("Información del sistema:\n" + (mensajeServidor || "No se ha podido procesar la candidatura en este momento."));
       }
       
-      cerrarModalCV(); // Cerramos el modal de todas formas para limpiar la pantalla
+      cerrarModalCV(); 
     }
   };
 
-  // --- ESTILOS ---
   const styles = {
     tabBtn: { padding: "10px 18px", fontSize: "14px", fontWeight: "600", border: "none", borderRadius: "8px", cursor: "pointer", transition: "all 0.2s ease" },
     sinDatos: { color: "#64748b", fontStyle: "italic", textAlign: "center", padding: "20px" }
@@ -414,51 +393,51 @@ const handleSubmitPostulacionReal = async (e) => {
           <p>Registro oficial de contratistas homologados del sector de prestación de servicios municipales.</p>
         </div>
 
-        {/* NAVEGACIÓN POR PESTAÑAS */}
-        {miRol === "Admin" || miRol === "Ayuntamiento" ? (
-          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-            <button
-              onClick={() => setVistaActiva("activas")}
-              style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "activas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "activas" ? "#fff" : "#475569" }}
-            >
-              Empresas Homologadas Activas
-            </button>
-            <button
-              onClick={() => setVistaActiva("ceses")}
-              style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "ceses" ? "#eab308" : "#e2e8f0", color: vistaActiva === "ceses" ? "#fff" : "#475569" }}
-            >
-              Solicitudes de Baja e Inactivas
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-            {miRol === "Empresa" && (
+          {miRol === "Admin" || miRol === "Ayuntamiento" ? (
+            <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
               <button
-                onClick={() => setVistaActiva("propias")}
-                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "propias" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "propias" ? "#fff" : "#475569" }}
+                onClick={() => setVistaActiva("activas")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "activas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "activas" ? "#fff" : "#475569" }}
               >
-                Mis Empresas Registradas
+                Empresas Homologadas Activas
               </button>
-            )}
+              <button
+                onClick={() => setVistaActiva("ceses")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "ceses" ? "#eab308" : "#e2e8f0", color: vistaActiva === "ceses" ? "#fff" : "#475569" }}
+              >
+                Solicitudes de Baja e Inactivas
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+              {miRol === "Empresa" && (
+                <button
+                  onClick={() => setVistaActiva("propias")}
+                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "propias" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "propias" ? "#fff" : "#475569" }}
+                >
+                  Mis Empresas Registradas
+                </button>
+              )}
 
-            {miRol === "Trabajador" && tieneContratosActivos && (
-              <button
-                onClick={() => setVistaActiva("trabajando")}
-                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "trabajando" ? "#10b981" : "#e2e8f0", color: vistaActiva === "trabajando" ? "#fff" : "#475569" }}
-              >
-                Trabajando en...
-              </button>
-            )}
-            {miRol === "Trabajador" && (
-              <button
-                onClick={() => setVistaActiva("todas")}
-                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
-              >
-                Catálogo General (Buscar Empleo)
-              </button>
-            )}
-          </div>
-        )}
+              {miRol === "Trabajador" && tieneContratosActivos && (
+                <button
+                  onClick={() => setVistaActiva("trabajando")}
+                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "trabajando" ? "#10b981" : "#e2e8f0", color: vistaActiva === "trabajando" ? "#fff" : "#475569" }}
+                >
+                  Trabajando en...
+                </button>
+              )}
+
+              {(miRol === "Trabajador" || miRol === "Empresa") && (
+                <button
+                  onClick={() => setVistaActiva("todas")}
+                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
+                >
+                  Catálogo General (Buscar Empleo)
+                </button>
+              )}
+            </div>
+          )}
 
         <div className="modulo-tarjeta-blanca">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -498,7 +477,7 @@ const handleSubmitPostulacionReal = async (e) => {
               </thead>
               <tbody>
                 {empresasFiltradas.map((emp) => {
-                  // --- CORRECCIÓN CLAVE: Lotes estructurados como array ---
+
                   const listadoLotes = Array.isArray(emp.lotesAsignados) ? emp.lotesAsignados : [];
 
                   return (
@@ -559,13 +538,11 @@ const handleSubmitPostulacionReal = async (e) => {
                             {miRol === "Admin" && (
                               <button className="btn-vesta secundario" onClick={() => prepararEdicion(emp)}>Editar</button>
                             )}
-                            {vistaActiva === "ceses" ? (
-                              // CONDICIÓN MEJORADA: Comprobamos si es Admin, o si es Ayuntamiento y coincide el ID (soportando tanto A mayúscula como minúscula)
+                            {vistaActiva === "ceses" ? (                       
                               miRol === "Admin" || 
                               (miRol === "Ayuntamiento" && 
                                 (
-                                  // Compara ignorando si el backend envió el dato en minúsculas o mayúsculas
-String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.getItem("idAyuntamiento") || localStorage.getItem("ayuntamientoId"))
+                                  String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.getItem("idAyuntamiento") || localStorage.getItem("ayuntamientoId"))
                                 )
                               ) ? (
                                 <button 
@@ -627,7 +604,7 @@ String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.g
         </div>
       </div>
 
-      {/* MODAL GESTIÓN EMPRESAS */}
+
       {mostrarModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -678,7 +655,7 @@ String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.g
         </div>
       )}
 
-      {/* MODAL ENVIAR CV / POSTULACIÓN */}
+
       {mostrarModalCV && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -700,7 +677,7 @@ String(emp.ayuntamientoId || emp.AyuntamientoId || "") === String(localStorage.g
               <div>
                 <label style={labelStyle}>Notas adicionales / Presentación</label>
                 <textarea 
-                  value={formCV.notas} // Corregido: "notas" en lugar de "notes"
+                  value={formCV.notas} 
                   onChange={(e) => setFormCV({ ...formCV, notas: e.target.value })}
                   style={{ ...inputStyle, minHeight: "80px", resize: "vertical" }}
                   placeholder="Escribe un mensaje breve para la empresa..."

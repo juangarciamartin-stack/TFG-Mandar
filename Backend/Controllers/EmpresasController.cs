@@ -28,7 +28,7 @@ namespace Backend.Controllers
             _env = env; 
         }
 
-    // GET: api/Empresas?ayuntamientoId=3
+    // GET
     [HttpGet]
     public async Task<IActionResult> GetEmpresas([FromQuery] int? ayuntamientoId = null)
     {
@@ -74,7 +74,7 @@ namespace Backend.Controllers
         }
     }
 
-        // GET: api/Empresas/lista-desplegable?ayuntamientoId=3
+        // GET: api/Empresas/lista-desplegable
         [HttpGet("lista-desplegable")]
         public async Task<IActionResult> GetEmpresasDesplegable([FromQuery] int? ayuntamientoId = null)
         {
@@ -124,111 +124,94 @@ namespace Backend.Controllers
             return Ok(resultado);
         }
 
-// PUT: api/Empresas/{id}/cambiar-estado
-// PUT: api/Empresas/{id}/cambiar-estado
-[HttpPut("{id}/cambiar-estado")]
-public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoDto dto)
-{
-    try
-    {
-        var empresa = await _context.Empresas.FirstOrDefaultAsync(e => e.Id == id);
-        if (empresa == null) return NotFound("Empresa no encontrada.");
-
-        // Log de diagnóstico para la consola
-        Console.WriteLine($"[VESTA DEBUG] CambiarEstado Empresa ID: {empresa.Id}. Anterior AyuntamientoId BD: {empresa.AyuntamientoId} | DTO.AyuntamientoId Frontend: {dto?.AyuntamientoId} | Rol: {dto?.RolUsuario}");
-
-        // 🛡️ CONTROL DE SEGURIDAD NUEVO
-        // Si el Ayuntamiento intenta cambiar el estado a "Aprobado", verificamos que el dueño no esté trabajando ya.
-        if (dto != null && string.Equals(dto.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
+        // PUT: api/Empresas/{id}/cambiar-estado
+        [HttpPut("{id}/cambiar-estado")]
+        public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoDto dto)
         {
-            int idUsuarioGestorPrueba = empresa.UsuarioId;
-
-            // Comprobamos si tiene un contrato activo en la tabla intermedia UsuarioEmpresas
-            bool yaTieneTrabajoActivo = await _context.UsuarioEmpresas
-                .AnyAsync(ue => ue.UsuarioId == idUsuarioGestorPrueba && ue.EstadoSolicitud == "Contratado");
-
-            if (yaTieneTrabajoActivo)
+            try
             {
-                // Devolvemos un error 409 Conflict con un mensaje claro que tu front leerá y mostrará en el alert
-                return Conflict(new { mensaje = "No se puede validar la empresa: El usuario solicitante figura actualmente como trabajador contratado en activo en otra empresa. Debe tramitar su baja voluntaria primero." });
-            }
-        }
-
-        // 🛡️ EN LUGAR DE BLOQUEAR, CORREGIMOS EL MUNICIPIO AL VUELO
-        if (dto != null && dto.RolUsuario == "Ayuntamiento")
-        {
-            if (dto.AyuntamientoId.HasValue && dto.AyuntamientoId.Value > 0)
-            {
-                // Si el ID del panel no coincide con el de la BD, lo actualizamos al del panel actual
-                if (empresa.AyuntamientoId != dto.AyuntamientoId.Value)
+                var empresa = await _context.Empresas.FirstOrDefaultAsync(e => e.Id == id);
+                if (empresa == null) return NotFound("Empresa no encontrada.");           
+                if (dto != null && string.Equals(dto.Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine($"[VESTA CORRECCIÓN] Reasignando Empresa ID {empresa.Id} del Ayuntamiento {empresa.AyuntamientoId} al Ayuntamiento {dto.AyuntamientoId.Value} de forma automática.");
-                    empresa.AyuntamientoId = dto.AyuntamientoId.Value; 
+                    int idUsuarioGestorPrueba = empresa.UsuarioId;
+                    bool yaTieneTrabajoActivo = await _context.UsuarioEmpresas
+                        .AnyAsync(ue => ue.UsuarioId == idUsuarioGestorPrueba && ue.EstadoSolicitud == "Contratado");
+
+                    if (yaTieneTrabajoActivo)
+                    {
+                        return Conflict(new { mensaje = "No se puede validar la empresa: El usuario solicitante figura actualmente como trabajador contratado en activo en otra empresa. Debe tramitar su baja voluntaria primero." });
+                    }
                 }
-            }
-        }
 
-        string estadoAnterior = empresa.EstadoAprobacion;
-        empresa.EstadoAprobacion = dto.Estado; // "Aprobado"
-        
-        int idUsuarioGestor = empresa.UsuarioId;
-
-        // 🟢 SI PASA A ESTAR APROBADA / ALTA
-        if (string.Equals(empresa.EstadoAprobacion, "Aprobado", StringComparison.OrdinalIgnoreCase))
-        {
-            // 1. Asegurar rol de Jefe al dueño
-            var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
-            if (usuario != null && usuario.Rol != "Admin")
-            {
-                usuario.Rol = "Empresa";
-                _context.Entry(usuario).State = EntityState.Modified;
-            }
-
-            // 2. Eliminar al dueño de la tabla de operarios/trabajadores
-            var relacionFalsa = await _context.UsuarioEmpresas
-                .FirstOrDefaultAsync(ue => ue.EmpresaId == id && ue.UsuarioId == idUsuarioGestor);
-            if (relacionFalsa != null)
-            {
-                _context.UsuarioEmpresas.Remove(relacionFalsa);
-            }
-        }
-        
-        // 🔒 SI PASA A ESTAR EN BAJA
-        else if (string.Equals(empresa.EstadoAprobacion, "Baja", StringComparison.OrdinalIgnoreCase) && 
-                 !string.Equals(estadoAnterior, "Baja", StringComparison.OrdinalIgnoreCase))
-        {
-            var relacionesAfectadas = _context.UsuarioEmpresas.Where(ue => ue.EmpresaId == id);
-            _context.UsuarioEmpresas.RemoveRange(relacionesAfectadas);
-
-            bool tieneMasEmpresas = await _context.Empresas
-                .AnyAsync(e => e.UsuarioId == idUsuarioGestor && e.EstadoAprobacion == "Aprobado" && e.Id != id);
-
-            if (!tieneMasEmpresas)
-            {
-                var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
-                if (usuario != null && usuario.Rol != "Admin")
+                if (dto != null && dto.RolUsuario == "Ayuntamiento")
                 {
-                    usuario.Rol = "Trabajador";
-                    _context.Entry(usuario).State = EntityState.Modified;
+                    if (dto.AyuntamientoId.HasValue && dto.AyuntamientoId.Value > 0)
+                    {
+                        if (empresa.AyuntamientoId != dto.AyuntamientoId.Value)
+                        {                         
+                            empresa.AyuntamientoId = dto.AyuntamientoId.Value; 
+                        }
+                    }
                 }
+
+                string estadoAnterior = empresa.EstadoAprobacion;
+                empresa.EstadoAprobacion = dto.Estado; 
+                
+                int idUsuarioGestor = empresa.UsuarioId;
+
+                if (string.Equals(empresa.EstadoAprobacion, "Aprobado", StringComparison.OrdinalIgnoreCase))
+                {
+                    var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
+                    if (usuario != null && usuario.Rol != "Admin")
+                    {
+                        usuario.Rol = "Empresa";
+                        _context.Entry(usuario).State = EntityState.Modified;
+                    }
+
+                    var relacionFalsa = await _context.UsuarioEmpresas
+                        .FirstOrDefaultAsync(ue => ue.EmpresaId == id && ue.UsuarioId == idUsuarioGestor);
+                    if (relacionFalsa != null)
+                    {
+                        _context.UsuarioEmpresas.Remove(relacionFalsa);
+                    }
+                }
+                
+                else if (string.Equals(empresa.EstadoAprobacion, "Baja", StringComparison.OrdinalIgnoreCase) && 
+                        !string.Equals(estadoAnterior, "Baja", StringComparison.OrdinalIgnoreCase))
+                {
+                    var relacionesAfectadas = _context.UsuarioEmpresas.Where(ue => ue.EmpresaId == id);
+                    _context.UsuarioEmpresas.RemoveRange(relacionesAfectadas);
+
+                    bool tieneMasEmpresas = await _context.Empresas
+                        .AnyAsync(e => e.UsuarioId == idUsuarioGestor && e.EstadoAprobacion == "Aprobado" && e.Id != id);
+
+                    if (!tieneMasEmpresas)
+                    {
+                        var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
+                        if (usuario != null && usuario.Rol != "Admin")
+                        {
+                            usuario.Rol = "Trabajador";
+                            _context.Entry(usuario).State = EntityState.Modified;
+                        }
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { mensaje = "Estado actualizado correctamente, municipio unificado y roles sincronizados." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error interno: {ex.Message}");
             }
         }
-
-        await _context.SaveChangesAsync();
-        return Ok(new { mensaje = "Estado actualizado correctamente, municipio unificado y roles sincronizados." });
-    }
-    catch (Exception ex)
-    {
-        return StatusCode(500, $"Error interno: {ex.Message}");
-    }
-}
 
         // POST: api/Empresas/postularse
         [HttpPost("postularse")]
         public async Task<IActionResult> PostularseAEmpresa(
             [FromForm] int usuarioId,
             [FromForm] int empresaId,
-            [FromForm] string notas,              // <- nombre corregido (era "notas", frontend enviaba "notes")
+            [FromForm] string notas,              
             [FromForm] IFormFile curriculumFile)
         {
             if (usuarioId <= 0 || empresaId <= 0)
@@ -237,7 +220,6 @@ public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoD
             if (curriculumFile == null || curriculumFile.Length == 0)
                 return BadRequest("Es obligatorio adjuntar un archivo de currículum en formato PDF.");
 
-            // Validar que sea PDF
             if (!curriculumFile.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
                 return BadRequest("El archivo adjunto debe estar en formato PDF.");
 
@@ -400,76 +382,70 @@ public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoD
         }
 
 
-// POST: api/Empresas/subir-nomina
-[HttpPost("subir-nomina")]
-public async Task<IActionResult> SubirNomina(
-    [FromForm] int usuarioId,
-    [FromForm] int empresaId,
-    [FromForm] string periodo,
-    [FromForm] IFormFile archivoNomina)
-{
-    if (usuarioId <= 0) return BadRequest("El ID de usuario es inválido.");
-    if (empresaId <= 0) return BadRequest("El ID de empresa es inválido.");
-    if (string.IsNullOrEmpty(periodo)) return BadRequest("El periodo es obligatorio.");
-    if (archivoNomina == null || archivoNomina.Length == 0) return BadRequest("El archivo es obligatorio.");
-
-    try
-    {
-        // 💡 Usamos la ruta oficial garantizada por .NET Core Core
-        var baseFolder = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
-        var carpetaDestino = Path.Combine(baseFolder, "uploads", "nominas");
-
-        // Creamos la carpeta física si no existe en el wwwroot real
-        if (!Directory.Exists(carpetaDestino))
+        // POST: api/Empresas/subir-nomina
+        [HttpPost("subir-nomina")]
+        public async Task<IActionResult> SubirNomina(
+            [FromForm] int usuarioId,
+            [FromForm] int empresaId,
+            [FromForm] string periodo,
+            [FromForm] IFormFile archivoNomina)
         {
-            Directory.CreateDirectory(carpetaDestino);
+            if (usuarioId <= 0) return BadRequest("El ID de usuario es inválido.");
+            if (empresaId <= 0) return BadRequest("El ID de empresa es inválido.");
+            if (string.IsNullOrEmpty(periodo)) return BadRequest("El periodo es obligatorio.");
+            if (archivoNomina == null || archivoNomina.Length == 0) return BadRequest("El archivo es obligatorio.");
+
+            try
+            {
+                var baseFolder = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+                var carpetaDestino = Path.Combine(baseFolder, "uploads", "nominas");
+
+                if (!Directory.Exists(carpetaDestino))
+                {
+                    Directory.CreateDirectory(carpetaDestino);
+                }
+
+                string periodoLimpio = Uri.UnescapeDataString(periodo)
+                    .Replace(" / ", "_")
+                    .Replace("/", "_")
+                    .Replace(" ", "")
+                    .Trim();
+                
+                var nombreArchivoUnico = $"nomina_{usuarioId}_{periodoLimpio}.pdf";
+                var rutaCompletaFisica = Path.Combine(carpetaDestino, nombreArchivoUnico);
+
+                using (var stream = new FileStream(rutaCompletaFisica, FileMode.Create))
+                {
+                    await archivoNomina.CopyToAsync(stream);
+                }
+
+                var partesPeriodo = Uri.UnescapeDataString(periodo).Split('/');
+                string mesNomina = partesPeriodo[0].Trim();
+                int anioNomina = DateTime.Now.Year;
+                
+                if (partesPeriodo.Length > 1 && int.TryParse(partesPeriodo[1].Trim(), out int anioParseado))
+                    anioNomina = anioParseado;
+
+                var urlRelativaBD = $"/uploads/nominas/{nombreArchivoUnico}";
+
+                var nuevaNomina = new Nomina {
+                    UsuarioId = usuarioId,
+                    EmpresaId = empresaId,
+                    Mes = mesNomina,
+                    Anio = anioNomina,
+                    RutaArchivoPDF = urlRelativaBD
+                };
+
+                _context.Nominas.Add(nuevaNomina);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { mensaje = "Nómina guardada en servidor y BD con éxito.", url = urlRelativaBD });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = $"Error interno en el servidor: {ex.Message}", detalle = ex.ToString() });
+            }
         }
-
-        // Limpieza estricta del periodo
-        string periodoLimpio = Uri.UnescapeDataString(periodo)
-            .Replace(" / ", "_")
-            .Replace("/", "_")
-            .Replace(" ", "")
-            .Trim();
-        
-        var nombreArchivoUnico = $"nomina_{usuarioId}_{periodoLimpio}.pdf";
-        var rutaCompletaFisica = Path.Combine(carpetaDestino, nombreArchivoUnico);
-
-        // Guardamos el archivo físicamente en el disco duro
-        using (var stream = new FileStream(rutaCompletaFisica, FileMode.Create))
-        {
-            await archivoNomina.CopyToAsync(stream);
-        }
-
-        // Extraemos Mes y Año
-        var partesPeriodo = Uri.UnescapeDataString(periodo).Split('/');
-        string mesNomina = partesPeriodo[0].Trim();
-        int anioNomina = DateTime.Now.Year;
-        
-        if (partesPeriodo.Length > 1 && int.TryParse(partesPeriodo[1].Trim(), out int anioParseado))
-            anioNomina = anioParseado;
-
-        // Ruta web para guardar en la BD
-        var urlRelativaBD = $"/uploads/nominas/{nombreArchivoUnico}";
-
-        var nuevaNomina = new Nomina {
-            UsuarioId = usuarioId,
-            EmpresaId = empresaId,
-            Mes = mesNomina,
-            Anio = anioNomina,
-            RutaArchivoPDF = urlRelativaBD
-        };
-
-        _context.Nominas.Add(nuevaNomina);
-        await _context.SaveChangesAsync();
-
-        return Ok(new { mensaje = "Nómina guardada en servidor y BD con éxito.", url = urlRelativaBD });
-    }
-    catch (Exception ex)
-    {
-        return StatusCode(500, new { mensaje = $"Error interno en el servidor: {ex.Message}", detalle = ex.ToString() });
-    }
-}
 
         // GET: api/Empresas/mis-nominas/{usuarioId}
         [HttpGet("mis-nominas/{usuarioId}")]
@@ -605,81 +581,77 @@ public async Task<IActionResult> SubirNomina(
             }
         }
 
-        // PUT: api/Empresas/5
-        // PUT: api/Empresas/5
-// PUT: api/Empresas/5
-[HttpPut("{id}")]
-public async Task<IActionResult> PutEmpresa(int id, [FromBody] ActualizarEmpresaDto dto)
-{
-    if (dto == null) return BadRequest("Datos inválidos.");
 
-    var empresaExistente = await _context.Empresas.FirstOrDefaultAsync(e => e.Id == id);
-    if (empresaExistente == null) return NotFound("La empresa solicitada no existe.");
-
-    int idUsuarioGestor = empresaExistente.UsuarioId;
-    
-    // 1. Guardamos el estado que tenía en la BD antes de tocar nada
-    string estadoAnterior = empresaExistente.EstadoAprobacion;
-
-    // 2. Mapeamos los datos del DTO (Si vienen vacíos, mantenemos lo que había)
-    if (!string.IsNullOrEmpty(dto.NombreEmpresa)) empresaExistente.NombreEmpresa = dto.NombreEmpresa;
-    if (!string.IsNullOrEmpty(dto.Cif)) empresaExistente.Cif = dto.Cif;
-    if (!string.IsNullOrEmpty(dto.Direccion)) empresaExistente.Direccion = dto.Direccion;
-    if (!string.IsNullOrEmpty(dto.EmailContacto)) empresaExistente.EmailContacto = dto.EmailContacto;
-    
-    // Si el frontend no manda estado (como al dar de alta), asumimos que pasa a "Aprobado"
-    empresaExistente.EstadoAprobacion = !string.IsNullOrEmpty(dto.EstadoAprobacion) 
-        ? dto.EstadoAprobacion 
-        : "Aprobado";
-
-    try
-    {
-        // 🔒 SEGURIDAD: Solo entramos aquí si el estado NUEVO es "Baja" Y ANTES no era "Baja"
-        if (string.Equals(empresaExistente.EstadoAprobacion, "Baja", StringComparison.OrdinalIgnoreCase) && 
-            !string.Equals(estadoAnterior, "Baja", StringComparison.OrdinalIgnoreCase))
+        // PUT: api/Empresas
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutEmpresa(int id, [FromBody] ActualizarEmpresaDto dto)
         {
-            // Control de lotes: si tiene lotes activos, no se puede dar de baja
-            if (await _context.Lotes.AnyAsync(l => l.IdEmpresa == id))
-                return Conflict(new { mensaje = "No se puede dar de baja: existen lotes activos asignados a esta empresa." });
+            if (dto == null) return BadRequest("Datos inválidos.");
 
-            var relacionesAfectadas = _context.UsuarioEmpresas.Where(ue => ue.EmpresaId == id);
-            _context.UsuarioEmpresas.RemoveRange(relacionesAfectadas);
+            var empresaExistente = await _context.Empresas.FirstOrDefaultAsync(e => e.Id == id);
+            if (empresaExistente == null) return NotFound("La empresa solicitada no existe.");
 
-            bool tieneMasEmpresas = await _context.Empresas
-                .AnyAsync(e => e.UsuarioId == idUsuarioGestor && e.EstadoAprobacion == "Aprobado" && e.Id != id);
+            int idUsuarioGestor = empresaExistente.UsuarioId;
+            
+            string estadoAnterior = empresaExistente.EstadoAprobacion;
 
-            if (!tieneMasEmpresas)
+            if (!string.IsNullOrEmpty(dto.NombreEmpresa)) empresaExistente.NombreEmpresa = dto.NombreEmpresa;
+            if (!string.IsNullOrEmpty(dto.Cif)) empresaExistente.Cif = dto.Cif;
+            if (!string.IsNullOrEmpty(dto.Direccion)) empresaExistente.Direccion = dto.Direccion;
+            if (!string.IsNullOrEmpty(dto.EmailContacto)) empresaExistente.EmailContacto = dto.EmailContacto;
+            
+            empresaExistente.EstadoAprobacion = !string.IsNullOrEmpty(dto.EstadoAprobacion) 
+                ? dto.EstadoAprobacion 
+                : "Aprobado";
+
+            try
             {
-                var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
-                if (usuario != null && usuario.Rol != "Admin")
+                if (string.Equals(empresaExistente.EstadoAprobacion, "Baja", StringComparison.OrdinalIgnoreCase) && 
+                    !string.Equals(estadoAnterior, "Baja", StringComparison.OrdinalIgnoreCase))
                 {
-                    usuario.Rol = "Trabajador";
-                    _context.Entry(usuario).State = EntityState.Modified;
-                    Console.WriteLine($"[Vesta] El dueño cerró su última empresa. Rol de Usuario ID {usuario.Id} cambiado a 'Trabajador'.");
+
+                    if (await _context.Lotes.AnyAsync(l => l.IdEmpresa == id))
+                        return Conflict(new { mensaje = "No se puede dar de baja: existen lotes activos asignados a esta empresa." });
+
+                    var relacionesAfectadas = _context.UsuarioEmpresas.Where(ue => ue.EmpresaId == id);
+                    _context.UsuarioEmpresas.RemoveRange(relacionesAfectadas);
+
+                    bool tieneMasEmpresas = await _context.Empresas
+                        .AnyAsync(e => e.UsuarioId == idUsuarioGestor && e.EstadoAprobacion == "Aprobado" && e.Id != id);
+
+                    if (!tieneMasEmpresas)
+                    {
+                        var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
+                        if (usuario != null && usuario.Rol != "Admin")
+                        {
+                            usuario.Rol = "Trabajador";
+                            _context.Entry(usuario).State = EntityState.Modified;
+                            Console.WriteLine($"[Vesta] El dueño cerró su última empresa. Rol de Usuario ID {usuario.Id} cambiado a 'Trabajador'.");
+                        }
+                    }
                 }
+
+                else if (string.Equals(empresaExistente.EstadoAprobacion, "Aprobado", StringComparison.OrdinalIgnoreCase))
+                {
+                    var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
+                    if (usuario != null && usuario.Rol != "Empresa" && usuario.Rol != "Admin")
+                    {
+                        usuario.Rol = "Empresa";
+                        _context.Entry(usuario).State = EntityState.Modified;
+                        Console.WriteLine($"[Vesta] Empresa reactivada/aprobada. Rol de Usuario ID {usuario.Id} asegurado como 'Empresa'.");
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { mensaje = "Empresa actualizada correctamente." });
             }
-        }
-        // 🟢 Si la empresa se está recuperando de una baja o aprobando, aseguramos el rol de Empresa
-        else if (string.Equals(empresaExistente.EstadoAprobacion, "Aprobado", StringComparison.OrdinalIgnoreCase))
-        {
-            var usuario = await _context.Usuarios.FindAsync(idUsuarioGestor);
-            if (usuario != null && usuario.Rol != "Empresa" && usuario.Rol != "Admin")
+            catch (DbUpdateConcurrencyException)
             {
-                usuario.Rol = "Empresa";
-                _context.Entry(usuario).State = EntityState.Modified;
-                Console.WriteLine($"[Vesta] Empresa reactivada/aprobada. Rol de Usuario ID {usuario.Id} asegurado como 'Empresa'.");
+                if (!EmpresaExists(id)) return NotFound();
+                else throw;
             }
         }
 
-        await _context.SaveChangesAsync();
-        return Ok(new { mensaje = "Empresa actualizada correctamente." });
-    }
-    catch (DbUpdateConcurrencyException)
-    {
-        if (!EmpresaExists(id)) return NotFound();
-        else throw;
-    }
-}
         // DELETE: api/Empresas/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEmpresa(int id)
@@ -689,7 +661,6 @@ public async Task<IActionResult> PutEmpresa(int id, [FromBody] ActualizarEmpresa
                 var empresa = await _context.Empresas.FindAsync(id);
                 if (empresa == null) return NotFound();
 
-                // 409 si hay lotes activos asignados
                 if (await _context.Lotes.AnyAsync(l => l.IdEmpresa == id))
                     return Conflict(new { mensaje = "No se puede dar de baja: existen lotes activos asignados a esta empresa." });
 
@@ -723,37 +694,32 @@ public async Task<IActionResult> PutEmpresa(int id, [FromBody] ActualizarEmpresa
                 return StatusCode(500, new { mensaje = $"Error al procesar la baja de la empresa: {ex.Message}" });
             }
         }
+
         // DELETE: api/Empresas/2/despedir-trabajador/4
-[HttpDelete("{empresaId}/despedir-trabajador/{usuarioId}")]
-public async Task<IActionResult> DespedirTrabajador(int empresaId, int usuarioId)
-{
-    try
-    {
-        // 1. Buscamos la relación contractual activa de este operario con la empresa
-        var relacion = await _context.UsuarioEmpresas
-            .FirstOrDefaultAsync(ue => ue.EmpresaId == empresaId && ue.UsuarioId == usuarioId);
-
-        if (relacion == null)
+        [HttpDelete("{empresaId}/despedir-trabajador/{usuarioId}")]
+        public async Task<IActionResult> DespedirTrabajador(int empresaId, int usuarioId)
         {
-            return NotFound(new { mensaje = "No se ha encontrado ninguna vinculación laboral para este operario en la empresa." });
+            try
+            {
+                var relacion = await _context.UsuarioEmpresas
+                    .FirstOrDefaultAsync(ue => ue.EmpresaId == empresaId && ue.UsuarioId == usuarioId);
+
+                if (relacion == null)
+                {
+                    return NotFound(new { mensaje = "No se ha encontrado ninguna vinculación laboral para este operario en la empresa." });
+                }
+                _context.UsuarioEmpresas.Remove(relacion);
+            
+                await _context.SaveChangesAsync();
+
+                return Ok(new { mensaje = "El operario ha sido dado de baja de la empresa con éxito." });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR EN DESPEDIR TRABAJADOR: {ex.Message}");
+                return StatusCode(500, new { mensaje = $"Error interno en el servidor al tramitar la baja: {ex.Message}" });
+            }
         }
-
-        // 2. Eliminamos la vinculación de la tabla intermedia para que deje de aparecer en la plantilla
-        _context.UsuarioEmpresas.Remove(relacion);
-        
-        // Nota: Si en tu sistema prefieres guardar un histórico en vez de borrar, 
-        // podrías hacer en su lugar: relacion.EstadoSolicitud = "Baja";
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new { mensaje = "El operario ha sido dado de baja de la empresa con éxito." });
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"ERROR EN DESPEDIR TRABAJADOR: {ex.Message}");
-        return StatusCode(500, new { mensaje = $"Error interno en el servidor al tramitar la baja: {ex.Message}" });
-    }
-}
 
         // POST: api/Empresas/solicitar
         [HttpPost("solicitar")]

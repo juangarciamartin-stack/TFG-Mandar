@@ -22,7 +22,6 @@ useEffect(() => {
     try {
       let res;
       
-      // 1. Hacemos las llamadas correctas según el rol
       if (esAdminOAyuntamiento) {
         res = await api.get("/Empresas"); 
       } else if (miRol === "Empresa") {
@@ -34,17 +33,14 @@ useEffect(() => {
       let empresasNormalizadas = [];
       
       if (res.data && Array.isArray(res.data)) {
-        // 2. UNIFICAMOS las propiedades para que convivan bien los datos de Admin y Empresa
         empresasNormalizadas = res.data.map(emp => ({
           id: emp.id ?? emp.Id ?? emp.idEmpresa ?? emp.IdEmpresa,
           nombreEmpresa: emp.nombreEmpresa ?? emp.NombreEmpresa ?? emp.nombre ?? emp.Nombre
         }));
       }
 
-      // 3. Guardamos TODO el array normalizado en el estado (sin filtrar bajas)
       setMisEmpresas(empresasNormalizadas);
       
-      // 4. Auto-seleccionamos la primera empresa si existen registros
       if (empresasNormalizadas.length > 0) {
         setEmpresaSeleccionadaId(empresasNormalizadas[0].id);
       }
@@ -112,20 +108,16 @@ useEffect(() => {
     }
 
     try {
-      // 1. Le pedimos el archivo a Axios indicando que esperamos datos binarios (blob)
-      // Axios inyectará automáticamente el Token de autorización que usas en el resto de la app
+
       const respuesta = await api.get(`/Nominas/descargar/${idNomina}`, {
         responseType: 'blob' 
       });
 
-      // 2. Creamos una URL local temporal para ese bloque de datos binarios
       const blob = new Blob([respuesta.data], { type: 'application/pdf' });
       const urlBlob = window.URL.createObjectURL(blob);
 
-      // 3. Abrimos esa URL temporal en una pestaña nueva (Se abrirá el PDF instantáneamente)
       window.open(urlBlob, '_blank');
 
-      // 4. Limpieza opcional de memoria pasados unos segundos
       setTimeout(() => window.URL.revokeObjectURL(urlBlob), 100);
 
     } catch (error) {
@@ -172,7 +164,6 @@ useEffect(() => {
                     <option value="">-- Ver Todas --</option>
                   )}
                   
-                  {/* Mapeo limpio usando las propiedades unificadas en minúscula */}
                   {misEmpresas.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.nombreEmpresa}

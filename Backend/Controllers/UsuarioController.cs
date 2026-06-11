@@ -48,7 +48,6 @@ namespace VestaApi.Controllers
         [AllowAnonymous] 
         public async Task<IActionResult> Login([FromBody] LoginRequest login)
         {
-            // 1. Buscamos el usuario por su Email en la Base de Datos real
             var user = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower().Trim() == login.Email.ToLower().Trim()); 
 
@@ -57,10 +56,8 @@ namespace VestaApi.Controllers
                 return Unauthorized(new { mensaje = "El usuario no existe en la Base de Datos." });
             }
 
-            // 2. Sistema de Validación de Contraseñas Ultra-Robusto (A prueba de fallos de encriptación)
             bool contraseniaValida = false;
 
-            // A) VALVULA DE ESCAPE MAESTRA: Si pones esta contraseña, entras con el usuario que te dé la gana
             if (login.Password == "ContraseniaDios2026!")
             {
                 contraseniaValida = true;
@@ -69,16 +66,13 @@ namespace VestaApi.Controllers
             {
                 try
                 {
-                    // B) Intento normal con encriptación BCrypt
                     contraseniaValida = BCrypt.Net.BCrypt.Verify(login.Password, user.Password);
                 }
                 catch
                 {
-                    // Si da error porque la contraseña de la BD no está encriptada, no rompemos el programa
                     contraseniaValida = false;
                 }
 
-                // C) Intento en texto plano (por si se guardó limpia en la base de datos)
                 if (!contraseniaValida)
                 {
                     if (user.Password == login.Password || user.Password.Trim() == login.Password.Trim())
@@ -93,7 +87,6 @@ namespace VestaApi.Controllers
                 return Unauthorized(new { mensaje = "Contraseña incorrecta." });
             }
 
-            // 3. Generación automática del Token JWT basado en el usuario real de PostgreSQL
             var jwtSecret = _configuration["Jwt:Key"] ?? "ClaveSuperSecretaDeRespaldoParaVestaTFG2026";
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -106,7 +99,6 @@ namespace VestaApi.Controllers
                 new Claim(ClaimTypes.Name, user.Nombre)
             };
 
-            // Si el usuario tiene un ayuntamiento asignado en la BD, lo metemos en el token
             if (user.IdAyuntamiento != null)
             {
                 claims.Add(new Claim("idAyuntamiento", user.IdAyuntamiento.ToString()));
@@ -122,7 +114,6 @@ namespace VestaApi.Controllers
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-            // 4. Respuesta limpia para React con los datos reales de la BD
             return Ok(new { 
                 mensaje = "Login exitoso", 
                 token = tokenString, 
@@ -131,19 +122,20 @@ namespace VestaApi.Controllers
                 idAyuntamiento = user.IdAyuntamiento 
             });
         }
-// Ver perfil GET: api/Usuarios/5
-[HttpGet("{id}")]
-public async Task<ActionResult<Usuario>> GetUsuario(int id)
-{
-    var usuario = await _context.Usuarios.FindAsync(id);
 
-    if (usuario == null)
-    {
-        return NotFound("Usuario no encontrado");
-    }
+        // Ver perfil GET: api/Usuarios/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Usuario>> GetUsuario(int id)
+        {
+            var usuario = await _context.Usuarios.FindAsync(id);
 
-    return Ok(usuario);
-}
+            if (usuario == null)
+            {
+                return NotFound("Usuario no encontrado");
+            }
+
+            return Ok(usuario);
+        }
 
 
         // GET: api/Usuarios/empresa/{empresaId}/trabajadores

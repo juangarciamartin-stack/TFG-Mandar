@@ -8,8 +8,6 @@ export const SolicitarEmpresa = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  
-  // 1. Estado para almacenar la lista de ayuntamientos disponibles
   const [ayuntamientos, setAyuntamientos] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -17,14 +15,13 @@ export const SolicitarEmpresa = () => {
     cif: "",
     direccion: "",
     emailContacto: "",
-    ayuntamientoId: "", // 2. Añadimos el campo al estado del formulario
+    ayuntamientoId: "", 
   });
 
-  // 3. Traer los ayuntamientos del sistema al cargar la pantalla
   useEffect(() => {
     const obtenerAyuntamientos = async () => {
       try {
-        const response = await api.get("/Ayuntamientos"); // Asegúrate de que esta es tu ruta en el backend
+        const response = await api.get("/Ayuntamientos"); 
         if (response.data) {
           setAyuntamientos(response.data);
         }
@@ -57,12 +54,11 @@ export const SolicitarEmpresa = () => {
     }
 
     try {
-      // MAPEAMOS MANUALMENTE ASEGURANDO QUE COINCIDA CON TU CLASE SolicitarEmpresaDto DE C#
       const payload = {
         NombreEmpresa: formData.nombreEmpresa,
         Cif: formData.cif,
         Direccion: formData.direccion,
-        EmailContacto: formData.emailContacto, // Forzamos la mayúscula del DTO
+        EmailContacto: formData.emailContacto, 
         UsuarioId: parseInt(currentUserId, 10),
         AyuntamientoId: parseInt(formData.ayuntamientoId, 10), 
       };
@@ -238,7 +234,6 @@ export const SolicitarEmpresa = () => {
               />
             </div>
 
-            {/* 5. NUEVO CAMPO: Desplegable dinámico para seleccionar Ayuntamiento */}
             <div>
               <label style={styles.label}>
                 Ayuntamiento Regulador (Asignar Validación)

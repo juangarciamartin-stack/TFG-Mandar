@@ -7,13 +7,12 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//  REGISTRO DE SERVICIOS (Todos van aquí arriba)
 
 // Base de datos PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Controladores con ignorado de bucles en JSON
+// Controladores ignorado de bucles en JSON
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -23,7 +22,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configuración de Seguridad JWT
+// Configuración de seguridad JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -50,10 +49,10 @@ builder.Services.AddCors(options =>
     });
 }); 
 
-// AQUÍ SE CONVIERTE EN SOLO LECTURA (Cierre de servicios)
+// Solo lectura
 var app = builder.Build();
 
-// CONFIGURACIÓN DEL PIPELINE (Middlewares y Usos)
+//Cofiguracion del pipeline (Middlewares y usos)
 
 if (app.Environment.IsDevelopment())
 {
@@ -62,7 +61,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles(); // Carpeta pública wwwroot para pliegos, nóminas, etc.
+app.UseStaticFiles(); // Carpeta publica wwwroot para pliegos, nominas, etc.
 
 // El uso de CORS debe ir antes de la Autenticación/Autorización para evitar bloqueos
 app.UseCors("AllowViteApp");
@@ -72,7 +71,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// EJECUCIÓN DE LA SEED DE DATOS (Al arrancar la App)
+// ejecucion de la seed de datos
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

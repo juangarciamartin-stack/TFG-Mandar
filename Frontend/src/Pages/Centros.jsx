@@ -18,8 +18,6 @@ export const Centros = () => {
   const [editandoId, setEditandoId] = useState(null);
   const [centroSeleccionado, setCentroSeleccionado] = useState(null);
   const [loteElegidoId, setLoteElegidoId] = useState("");
-
-  // Variables base del localStorage
   const miRol = localStorage.getItem("rol") || ""; 
 
   const [formData, setFormData] = useState({
@@ -29,21 +27,16 @@ export const Centros = () => {
     idAyuntamiento: "",
   });
 
-  // Intentamos obtener una ID de ayuntamiento real cruzando datos de la API si falla el localStorage
   const obtenerIdAyuntamientoValida = useCallback((listaAyuntamientos) => {
     if (!listaAyuntamientos || listaAyuntamientos.length === 0) return "";
 
-    // 1. Intentona principal: Leer de las variables guardadas
     const idDirecta = localStorage.getItem("ayuntamientoId") || localStorage.getItem("usuarioId") || "";
     
-    // Validamos si esa ID directa de verdad existe en la lista de ayuntamientos que nos da la API
     const existeId = listaAyuntamientos.some(a => a.id.toString() === idDirecta.toString());
     if (existeId && idDirecta) {
       return idDirecta.toString();
     }
 
-    // 2. Plan de Rescate (Si eres rol Ayuntamiento y tu ID está mal mapeada):
-    // Asignamos de forma automática el primer ayuntamiento disponible que encontremos para que no rompa la inserción
     if (miRol === "Ayuntamiento") {
       console.warn("Advertencia: No se detectó una ID de ayuntamiento válida en el localStorage. Usando mapeo automático.");
       return listaAyuntamientos[0]?.id?.toString() || "";
@@ -66,13 +59,14 @@ export const Centros = () => {
         console.error("Error al precargar los lotes:", errLotes);
       }
 
-      // Seteamos los Ayuntamientos primero para tenerlos listos
       let ayuntamientosExtraidos = [];
+
       if (dataAytos && Array.isArray(dataAytos)) {
         ayuntamientosExtraidos = dataAytos;
       } else if (dataAytos && dataAytos.data && Array.isArray(dataAytos.data)) {
         ayuntamientosExtraidos = dataAytos.data;
       }
+
       setAyuntamientos(ayuntamientosExtraidos);
 
       if (dataCentros && Array.isArray(dataCentros)) {
@@ -95,7 +89,7 @@ export const Centros = () => {
     cargarDatos();
   }, [cargarDatos]);
 
-  // Manejador para abrir el modal pre-cargando la ID correcta resuelta
+
   const abrirNuevoCentroModal = () => {
     setEditandoId(null);
     const idAyuntamientoCorrecta = miRol === "Ayuntamiento" ? obtenerIdAyuntamientoValida(ayuntamientos) : "";
@@ -174,7 +168,6 @@ export const Centros = () => {
     try {
       let idFinal = formData.idAyuntamiento;
 
-      // Doble check de seguridad para el rol Ayuntamiento: si se va a mandar vacío o erróneo lo rescatamos
       if (miRol === "Ayuntamiento" && (!idFinal || isNaN(parseInt(idFinal, 10)))) {
         idFinal = obtenerIdAyuntamientoValida(ayuntamientos);
       }
@@ -246,7 +239,6 @@ export const Centros = () => {
     }
   };
 
-  // Resuelve el nombre visible en el input deshabilitado
   const miAyuntamientoNombre = ayuntamientos.find(
     (a) => a.id.toString() === formData.idAyuntamiento.toString()
   )?.nombreMunicipio || ayuntamientos.find(

@@ -31,15 +31,15 @@ export const Lotes = () => {
   const [loteParaPliego, setLoteParaPliego] = useState(null);
   const [archivoPDF, setArchivoPDF] = useState(null);
 
-  useEffect(() => {
+useEffect(() => {
     if (miRol === "Admin" || miRol === "Ayuntamiento") {
       cargarLotes();
       cargarEmpresasActivas(); 
-      if (miRol === "Admin") cargarAyuntamientos();
+      if (miRol === "Admin" && ayuntamientos.length === 0) cargarAyuntamientos();
     } else {
       setLoading(false);
     }
-  }, [miRol]);
+  }, [miRol, ayuntamientoSeleccionado]); 
 
   const cargarLotes = async () => {
     try {
@@ -63,23 +63,24 @@ export const Lotes = () => {
     }
   };
 
-  const cargarEmpresasActivas = async () => {
+const cargarEmpresasActivas = async () => {
     try {
-      const response = await api.get("/Empresas/lista-desplegable");
+      let idAytoFiltrar = "";
+      if (miRol === "Admin") {
+        idAytoFiltrar = ayuntamientoSeleccionado;
+      } else if (miRol === "Ayuntamiento") {
+        idAytoFiltrar = localStorage.getItem("idAyuntamiento");
+      }
+
+      let url = "/Empresas/lista-desplegable";
+      if (idAytoFiltrar) {
+        url = `/Empresas/lista-desplegable?ayuntamientoId=${idAytoFiltrar}`;
+      }
+
+      const response = await api.get(url);
       setEmpresasActivas(response.data);
     } catch (error) {
       console.error("Error al recuperar las empresas del sistema:", error);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("¿Estás seguro de eliminar este lote?")) {
-      try {
-        await deleteLote(id);
-        setLotes(lotes.filter((l) => l.id !== id));
-      } catch {
-        alert("No se pudo eliminar el lote.");
-      }
     }
   };
 
@@ -96,21 +97,24 @@ export const Lotes = () => {
     }
   };
 
-  const abrirModalLote = (lote = null) => {
+ const abrirModalLote = (lote = null) => {
     if (lote) {
       setFormData({
         id: lote.id,
         nombre: lote.nombre || "",
         descripcion: lote.descripcion || "",
       });
-      setAyuntamientoSeleccionado(lote.idAyuntamiento?.toString() || "");
+      setAyuntamientoSeleccionado(miRol === "Ayuntamiento" ? localStorage.getItem("idAyuntamiento") : (lote.idAyuntamiento?.toString() || ""));
       setEmpresaSeleccionada(lote.idEmpresa?.toString() || ""); 
       setEsEdicion(true);
     } else {
       setFormData({ id: "", nombre: "", descripcion: "" });
       setEmpresaSeleccionada(""); 
-      if (ayuntamientos.length > 0)
+      if (miRol === "Ayuntamiento") {
+        setAyuntamientoSeleccionado(localStorage.getItem("idAyuntamiento") || ""); 
+      } else if (ayuntamientos.length > 0) {
         setAyuntamientoSeleccionado(ayuntamientos[0].id.toString());
+      }
       setEsEdicion(false);
     }
     setMostrarModalLote(true);
@@ -126,7 +130,6 @@ const handleSubmitLote = async (e) => {
       } else if (miRol === "Ayuntamiento") {
         miAyuntamientoId = localStorage.getItem("idAyuntamiento");
         
-        // Si no existe, lanzamos un aviso para enterarnos en lugar de mandar datos rotos
         if (!miAyuntamientoId) {
           alert("Error crítico: No se encuentra el ID de tu Ayuntamiento en la sesión. Por favor, cierra sesión y vuelve a entrar.");
           return;
@@ -255,7 +258,6 @@ const handleSubmitLote = async (e) => {
                       </span>
                     </td>
                     
-                    {/* ← CÓDIGO NUEVO PARA RENDERIZAR LOS CENTROS */}
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         {lote.centros && lote.centros.length > 0 ? (
@@ -334,12 +336,11 @@ const handleSubmitLote = async (e) => {
                   <option value="">-- Dejar Lote sin Adjudicar / Pendiente --</option>
                   {empresasActivas.map((emp) => (
                     <option key={emp.id || emp.Id} value={emp.id || emp.Id}>
-                      {emp.nombreEmpresa || emp.NombreEmpresa} {emp.cif || emp.Cif ? `(CIF: ${emp.cif || emp.Cif})` : ''}
+                      {emp.nombreEmpresa || emp.NombreEmpresa || emp.nombre || emp.Nombre} {emp.cif || emp.Cif ? `(CIF: ${emp.cif || emp.Cif})` : ''}
                     </option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label style={labelStyle}>Nombre del Lote</label>
                 <input type="text" required value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} style={inputStyle} />

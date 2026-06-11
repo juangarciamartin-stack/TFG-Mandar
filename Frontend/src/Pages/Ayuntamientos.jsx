@@ -122,18 +122,12 @@ export const Ayuntamientos = () => {
         return;
       }
 
-      // ==========================================
-      // 👇 NUEVAS VALIDACIONES FRONTEND EXTRA 👇
-      // ==========================================
-
-      // 1. Validar Nombre del Gestor (Solo letras y espacios, mín. 2 caracteres)
       const regexNombre = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]{2,50}$/;
       if (!regexNombre.test(formData.nombreResponsable.trim())) {
         alert("El nombre del gestor solo puede contener letras y espacios.");
         return;
       }
 
-      // 2. Validar DNI (8 números y una letra al final)
       const regexDni = /^\d{8}[A-HJ-NP-TV-Z]$/i;
       const dniMayuscula = formData.dniResponsable.trim().toUpperCase();
       if (!regexDni.test(dniMayuscula)) {
@@ -141,22 +135,16 @@ export const Ayuntamientos = () => {
         return;
       }
 
-      // 3. Validar Teléfono (Exactamente 9 números, suele empezar por 6, 7, 8 o 9)
       const regexTelefono = /^[6789]\d{8}$/;
       if (!regexTelefono.test(formData.telefonoResponsable.trim())) {
         alert("El teléfono debe tener 9 dígitos numéricos y comenzar por un número válido (6, 7, 8 o 9).");
         return;
       }
 
-      // 4. Validar longitud de la contraseña
       if (formData.password.length < 6) {
         alert("La contraseña debe tener al menos 6 caracteres.");
         return;
       }
-
-      // ==========================================
-      // 👆 FIN DE VALIDACIONES 👆
-      // ==========================================
 
       try {
         const datosParaCrear = {
@@ -288,8 +276,40 @@ export const Ayuntamientos = () => {
   );
 };
 
-// ... (Los estilos del final se quedan exactamente igual)
-const modalOverlayStyle = { /* ... */ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 };
-const modalContentStyle = { /* ... */ backgroundColor: "#fff", padding: "24px 32px", borderRadius: "12px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" };
-const labelStyle = { /* ... */ display: "block", marginBottom: "4px", fontWeight: "600", fontSize: "12px", color: "#334155" };
-const inputStyle = { /* ... */ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box", backgroundColor: "#f8fafc", color: "#334155", outline: "none" };
+const modalOverlayStyle = { 
+    position: "fixed",
+    top: 0, left: 0, right: 0, bottom: 0, 
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    backdropFilter: "blur(4px)",
+     display: "flex", 
+     justifyContent: "center", 
+     alignItems: "center", 
+     zIndex: 1000 };
+
+const modalContentStyle = {
+  backgroundColor: "#fff", 
+  padding: "24px 32px", 
+  borderRadius: "12px", 
+  width: "100%", 
+  maxWidth: "500px", 
+  maxHeight: "90vh", 
+  overflowY: "auto", 
+  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" };
+
+const labelStyle = {
+  display: "block", 
+  marginBottom: "4px", 
+  fontWeight: "600", 
+  fontSize: "12px", 
+  color: "#334155" };
+
+const inputStyle = {
+   width: "100%", 
+   padding: "8px 12px", 
+   border: "1px solid #cbd5e1", 
+   borderRadius: "8px", 
+   fontSize: "14px", 
+   boxSizing: "border-box", 
+   backgroundColor: "#f8fafc", 
+   color: "#334155", 
+   outline: "none" };

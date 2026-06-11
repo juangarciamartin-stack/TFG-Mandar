@@ -41,7 +41,6 @@ useEffect(() => {
     try {
       let res;
       
-      // 1. Hacemos las peticiones correctas por rol
       if (miRol === "Admin" || miRol === "Ayuntamiento") {
         res = await api.get("/Empresas"); 
       } else if (miRol === "Empresa") {
@@ -55,15 +54,13 @@ useEffect(() => {
       let empresasFiltradas = [];
       
       if (res.data && Array.isArray(res.data)) {
-        // 2. UNIFICAMOS el formato de los objetos para evitar errores de mapeo entre endpoints
-        const empresasNormalizadas = res.data.map(emp => ({
+         const empresasNormalizadas = res.data.map(emp => ({
           id: emp.id ?? emp.Id ?? emp.idEmpresa ?? emp.IdEmpresa,
           nombreEmpresa: emp.nombreEmpresa ?? emp.NombreEmpresa ?? emp.nombre ?? emp.Nombre,
           estado: emp.estado ?? emp.Estado ?? "",
           estadoAprobacion: emp.estadoAprobacion ?? emp.EstadoAprobacion ?? ""
         }));
 
-        // 3. FILTRAMOS de manera segura: Solo pasan las que NO estén de baja
         empresasFiltradas = empresasNormalizadas.filter((emp) => {
           const estInterno = emp.estado.toLowerCase().trim();
           const estAprob = emp.estadoAprobacion.toLowerCase().trim();
@@ -74,14 +71,12 @@ useEffect(() => {
 
       console.log("Empresas finales listas para el selector (Personal):", empresasFiltradas);
 
-      // 4. Guardamos en el estado
       setMisEmpresas(empresasFiltradas);
-      
-      // 5. Auto-seleccionamos la primera si hay resultados
+
       if (empresasFiltradas.length > 0) {
         setEmpresaSeleccionadaId(empresasFiltradas[0].id);
       } else {
-        setEmpresaSeleccionadaId(""); // Limpiamos si viene vacío
+        setEmpresaSeleccionadaId(""); 
       }
     } catch (error) {
       console.error("Error al recuperar las empresas para el selector en Personal:", error);
@@ -133,47 +128,46 @@ useEffect(() => {
       return;
     }
 
-    // 1. Extraemos correctamente el ID del operario
     const idUsuario =
       empleadoSeleccionado.id ||
       empleadoSeleccionado.Id ||
       empleadoSeleccionado.usuarioId ||
       empleadoSeleccionado.UsuarioId;
 
-    const formData = new FormData();
-    
-    // 2. Mapeamos los campos exactamente como los pide tu [FromForm] de C#
-    formData.append("usuarioId", idUsuario);
-    formData.append("empresaId", empresaSeleccionadaId); // ¡Imprescindible!
-    
-    // 3. Formateamos el periodo con '/' para que pase el .Contains("/") del backend
-    formData.append("periodo", `${mesActualTexto} / ${anioActual}`);
-    
-    // 4. El nombre de la clave debe ser exactamente "archivoNomina" como tu IFormFile
-    formData.append("archivoNomina", formNomina.archivo); 
+  if (!idUsuario || !empresaSeleccionadaId || !formNomina.archivo) {
+    alert("Faltan datos obligatorios para subir la nómina (Usuario, Empresa o Archivo PDF).");
+    return;
+  }
 
-    try {
-      // Realizamos la petición POST al backend
-      const res = await api.post("/Empresas/subir-nomina", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
 
-      // Si tu backend responde con Ok, sacamos el mensaje que configuraste en C#
-      alert(res.data?.mensaje || `¡Nómina emitida con éxito para el periodo de ${mesActualTexto}!`);
+  const formData = new FormData();
+
+
+  formData.append("usuarioId", idUsuario);
+  formData.append("empresaId", empresaSeleccionadaId);
+  formData.append("periodo", `${mesActualTexto}/${anioActual}`);
+  formData.append("archivoNomina", formNomina.archivo); 
+
+  try {
+
+    const res = await api.post("/Empresas/subir-nomina", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    alert(res.data?.mensaje || `¡Nómina emitida con éxito para el periodo de ${mesActualTexto}!`);
+    
+    setMostrarModal(false);
+    setFormNomina({ archivo: null });
+  } catch (error) {
+    console.error("Error al transferir la nómina al backend:", error);
+    
+    const mensajeError = typeof error.response?.data === "string" 
+      ? error.response.data 
+      : (error.response?.data?.mensaje || "Error crítico al guardar la nómina.");
       
-      setMostrarModal(false);
-      setFormNomina({ archivo: null });
-    } catch (error) {
-      console.error("Error al transferir la nómina al backend:", error);
-      
-      // Capturamos el string directo que devuelve tu BadRequest("...") o el JSON de error
-      const mensajeError = typeof error.response?.data === "string" 
-        ? error.response.data 
-        : (error.response?.data?.mensaje || "Error crítico al guardar la nómina.");
-        
-      alert(mensajeError);
+    alert(mensajeError);
+  }
     }
-  };
 
   const handleContratar = async (candidatoId, nombre) => {
     if (!empresaSeleccionadaId) return;
@@ -223,22 +217,17 @@ const verDocumentoPDF = (url) => {
     return;
   }
 
-  // Si la url ya viene completa con http, la abrimos directamente
+
   if (url.startsWith("http")) {
     window.open(url, "_blank");
     return;
   }
 
-  // 1. Intentamos obtener la URL base limpia directamente de la ventana del navegador
-  // Si tu frontend corre en http://localhost:3000, esto detectará "http://localhost:"
-  const puertoBackend = "5125"; // El puerto de tu API .NET
+  const puertoBackend = "5125"; 
   let baseUrl = `${window.location.protocol}//${window.location.hostname}:${puertoBackend}/`;
 
-  // 2. Por si acaso estás usando otra IP o producción, probamos con api.defaults.baseURL
   if (api.defaults.baseURL) {
     try {
-      // Usamos el constructor de URL nativo de JavaScript para extraer solo el HOST (ej: http://localhost:5125)
-      // Esto elimina '/api', '/api/' y cualquier ruta extra limpiamente.
       const urlObj = new URL(api.defaults.baseURL);
       baseUrl = `${urlObj.protocol}//${urlObj.host}/`;
     } catch (e) {
@@ -246,16 +235,13 @@ const verDocumentoPDF = (url) => {
     }
   }
 
-  // 3. Limpiamos la ruta del archivo (quitamos la barra inicial si existe)
   let rutaLimpia = url;
   if (rutaLimpia.startsWith("/")) {
     rutaLimpia = rutaLimpia.substring(1);
   }
 
   const urlFinal = `${baseUrl}${rutaLimpia}`;
-  console.log("🚀 URL FINAL GENERADA PARA EL PDF:", urlFinal);
 
-  // Abrimos en pestaña nueva
   window.open(urlFinal, "_blank");
 };
 
@@ -297,12 +283,10 @@ const verDocumentoPDF = (url) => {
                 onChange={(e) => setEmpresaSeleccionadaId(e.target.value)}
                 style={styles.selectDropdown}
               >
-                {/* Si eres Admin o Ayuntamiento, damos la opción de ver todas */}
                 {(miRol === "Admin" || miRol === "Ayuntamiento") && (
                   <option value="">-- Ver Todas --</option>
                 )}
                 
-                {/* Recorremos el array que ya viene normalizado y limpio de bajas */}
                 {misEmpresas.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.nombreEmpresa}

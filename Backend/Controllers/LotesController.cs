@@ -65,38 +65,30 @@ namespace VestaApi.Controllers
             return Ok(lote);
         }
 
-// POST: api/Lotes
-[Authorize(Roles = "Admin,Ayuntamiento")]
-[HttpPost]
-public async Task<ActionResult<Lote>> PostLote(Lote lote)
-{
-    // ====================================================================
-    // 🛡️ CONTROL AUTOMÁTICO DE SEGURIDAD PARA EL TFG DE JUAN
-    // ====================================================================
-    // Comprobamos si el IdAyuntamiento que viene de React existe de verdad en la BD
-    bool existeAyuntamiento = await _context.Ayuntamientos.AnyAsync(a => a.Id == lote.IdAyuntamiento);
-
-    if (!existeAyuntamiento)
-    {
-        // Si no existe (está roto o vacío), buscamos el primer ayuntamiento real disponible
-        var primerAyuntamientoReal = await _context.Ayuntamientos.FirstOrDefaultAsync();
-
-        if (primerAyuntamientoReal == null)
+        // POST: api/Lotes
+        [Authorize(Roles = "Admin,Ayuntamiento")]
+        [HttpPost]
+        public async Task<ActionResult<Lote>> PostLote(Lote lote)
         {
-            // Si la tabla de ayuntamientos está completamente vacía, avisamos para que no rompa la BD
-            return BadRequest(new { mensaje = "¡Error! No puedes crear un lote porque no tienes NINGÚN ayuntamiento creado en el sistema. Entra como Admin y crea uno primero." });
+            bool existeAyuntamiento = await _context.Ayuntamientos.AnyAsync(a => a.Id == lote.IdAyuntamiento);
+
+            if (!existeAyuntamiento)
+            {
+
+                var primerAyuntamientoReal = await _context.Ayuntamientos.FirstOrDefaultAsync();
+
+                if (primerAyuntamientoReal == null)
+                {
+                    return BadRequest(new { mensaje = "¡Error! No puedes crear un lote porque no tienes NINGÚN ayuntamiento creado en el sistema. Entra como Admin y crea uno primero." });
+                }
+                lote.IdAyuntamiento = primerAyuntamientoReal.Id;
+            }
+
+            _context.Lotes.Add(lote);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetLote", new { id = lote.Id }, lote);
         }
-
-        // Le asignamos el ID del ayuntamiento real que sí existe
-        lote.IdAyuntamiento = primerAyuntamientoReal.Id;
-    }
-    // ====================================================================
-
-    _context.Lotes.Add(lote);
-    await _context.SaveChangesAsync();
-
-    return CreatedAtAction("GetLote", new { id = lote.Id }, lote);
-}
 
        // PUT: api/Lotes/5
         [Authorize(Roles = "Admin,Ayuntamiento")]

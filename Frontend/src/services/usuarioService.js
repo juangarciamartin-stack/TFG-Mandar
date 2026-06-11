@@ -14,19 +14,16 @@ export const registrarVinculacion = async (payload) => {
   return response.data;
 };
 
-// Trae las empresas de este CEO para llenar el selector/combo
 export const getMisEmpresasSelector = async () => {
   const response = await api.get("/Usuarios/mis-empresas-selector");
   return response.data;
 };
 
-// Lista Superior: Trabajadores activos en la empresa seleccionada
 export const getTrabajadoresEmpresa = async (empresaId) => {
   const response = await api.get(`/Usuarios/empresa/${empresaId}/trabajadores`);
   return response.data;
 };
 
-// Lista Inferior: Candidatos en bolsa ("Pendientes") con CV adjunto
 export const getPosiblesTrabajadores = async (empresaId) => {
   const response = await api.get(
     `/Usuarios/empresa/${empresaId}/posibles-trabajadores`,
@@ -34,7 +31,6 @@ export const getPosiblesTrabajadores = async (empresaId) => {
   return response.data;
 };
 
-// Botón de Contratar: Mueve un candidato de la Bolsa a la Plantilla
 export const contratarPersonalBolsa = async (relacionId, tipoRelacion) => {
   const response = await api.put(`/Usuarios/contratar-personal/${relacionId}`, {
     TipoRelacion: tipoRelacion,

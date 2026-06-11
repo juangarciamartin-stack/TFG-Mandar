@@ -15,8 +15,7 @@ const handleSubmit = async (e) => {
   setError("");
 
   try {
-    // 1. LLAMADA DIRECTA CORREGIDA (Usando fetch nativo)
-    const response = await fetch('http://localhost:5125/api/Usuarios/login', {
+    const response = await fetch('http://localhost:5125/api/Auth/login', {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -24,20 +23,19 @@ const handleSubmit = async (e) => {
       body: JSON.stringify({ email: email, password: password }),
     });
 
-    // 2. Control de errores del servidor
     if (!response.ok) {
       throw new Error("Email o contraseña incorrectos o el servidor no responde.");
     }
 
-    // 3. Procesamos la respuesta JSON
     const data = await response.json();
 
     const tokenReal = data.token || data.Token;
     const usuarioIdReal = data.usuarioId || data.UsuarioId;
     const rolReal = data.rol || data.Rol;
     const idAyuntamientoReal = data.idAyuntamiento || data.IdAyuntamiento;
+    const empresaIdReal = data.empresaId || data.EmpresaId;
+    const tieneContratoActivoReal = data.tieneContratoActivo ?? data.TieneContratoActivo;
 
-    // 4. Guardamos en el navegador
     localStorage.setItem("token", tokenReal);
     localStorage.setItem("usuarioId", usuarioIdReal);
     localStorage.setItem("rol", rolReal);
@@ -48,7 +46,14 @@ const handleSubmit = async (e) => {
       localStorage.removeItem("idAyuntamiento"); 
     }
 
-    // 5. Redirección inteligente
+    if (empresaIdReal) {
+      localStorage.setItem("empresaId", empresaIdReal);
+    } else {
+      localStorage.removeItem("empresaId");
+    }
+
+    localStorage.setItem("tieneContratoActivo", tieneContratoActivoReal ? "true" : "false");
+
     if (rolReal === "Admin") {
       navigate("/ayuntamientos");
     } else {
@@ -61,6 +66,7 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
+
   return (
     <div style={styles.container}>
       <h2

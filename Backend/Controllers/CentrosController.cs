@@ -20,7 +20,6 @@ namespace VestaApi.Controllers
             _context = context;
         }
 
-    // GET: api/Centros
     [HttpGet]
     public async Task<IActionResult> GetCentros()
     {
@@ -32,7 +31,6 @@ namespace VestaApi.Controllers
                 c.Direccion,
                 c.Localidad,
                 c.IdAyuntamiento,
-                // Proyectamos los lotes mapeando solo lo necesario para romper el bucle infinito
                 Lotes = c.Lotes.Select(l => new {
                     l.Id,
                     l.Nombre,
@@ -44,7 +42,6 @@ namespace VestaApi.Controllers
         return Ok(centros);
     }
 
-    // GET: api/Centros/5
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetCentro(int id)
     {
@@ -69,7 +66,6 @@ namespace VestaApi.Controllers
         return Ok(centro);
     }
 
-        // POST
         [HttpPost]
         public async Task<ActionResult<Centro>> PostCentro(Centro centro)
         {
@@ -79,7 +75,6 @@ namespace VestaApi.Controllers
             return CreatedAtAction("GetCentro", new { id = centro.Id }, centro);
         }
 
-        // PUT
         [HttpPut("{id}")]
         public async Task<IActionResult> PutCentro(int id, Centro centro)
         {
@@ -109,7 +104,6 @@ namespace VestaApi.Controllers
             return NoContent();
         }
 
-        // DELETE
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCentro(int id)
         {

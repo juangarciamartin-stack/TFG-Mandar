@@ -5,11 +5,13 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks; 
 using VestaApi.DTOs;
 using Backend.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using VestaApi.Models; 
+using Microsoft.AspNetCore.Identity; 
 
 namespace VestaApi.Controllers
 {
@@ -19,11 +21,13 @@ namespace VestaApi.Controllers
     {
         private readonly ApplicationDbContext _context; 
         private readonly IConfiguration _config;
+        private readonly PasswordHasher<Usuario> _passwordHasher; 
 
         public AuthController(ApplicationDbContext context, IConfiguration config) 
         {
             _context = context;
             _config = config;
+            _passwordHasher = new PasswordHasher<Usuario>(); 
         }
 
         [HttpPost("login")] 
@@ -31,10 +35,16 @@ namespace VestaApi.Controllers
         {
             try
             {
-                var usuario = _context.Usuarios
-                    .FirstOrDefault(u => u.Email == request.Email && u.Password == request.Password);
+                var usuario = _context.Usuarios.FirstOrDefault(u => u.Email == request.Email);
 
                 if (usuario == null)
+                {
+                    return Unauthorized(new { mensaje = "Email o contraseña incorrectos" });
+                }
+
+                var resultadoVerificacion = _passwordHasher.VerifyHashedPassword(usuario, usuario.Password, request.Password);
+
+                if (resultadoVerificacion == PasswordVerificationResult.Failed)
                 {
                     return Unauthorized(new { mensaje = "Email o contraseña incorrectos" });
                 }
@@ -60,7 +70,7 @@ namespace VestaApi.Controllers
                 {
                     try {
                         var ayuntamientoPropio = _context.Ayuntamientos.FirstOrDefault(a => a.Id == usuario.Id);
-                        miAyuntamientoId = ayuntamientoPropio?.Id; // ¡Aquí capturamos el ID 1!
+                        miAyuntamientoId = ayuntamientoPropio?.Id; 
                     } catch (Exception ex) {
                         Console.WriteLine($"Error al buscar ayuntamiento: {ex.Message}");
                     }
@@ -116,15 +126,16 @@ namespace VestaApi.Controllers
                 {
                     Nombre = request.Nombre,
                     Email = request.Email,
-                    Password = request.Password, 
                     Dni = request.Dni,               
                     Telefono = request.Telefono,     
                     Rol = "Trabajador", 
                     Disponibilidad = true,
-                    Activo = true,                   
+                    Activo = true,                                   
                     TokenVerificacion = null,
                     TokenExpiracion = null
                 };
+
+                nuevoUsuario.Password = _passwordHasher.HashPassword(nuevoUsuario, request.Password);
 
                 _context.Usuarios.Add(nuevoUsuario);
                 await _context.SaveChangesAsync();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using VestaApi.Models; 
 using Backend.Data;  
 using System;
+using Microsoft.AspNetCore.Identity; 
 
 namespace Backend.DataSeed 
 {
@@ -10,7 +11,8 @@ namespace Backend.DataSeed
     {
         public static void Initialize(ApplicationDbContext context)
         { 
-            //Admin
+            var hasher = new PasswordHasher<Usuario>();
+
             var admin = context.Usuarios.FirstOrDefault(u => u.Email == "admin@vesta.es");
             if (admin == null)
             {
@@ -18,17 +20,18 @@ namespace Backend.DataSeed
                 {
                     Nombre = "Administrador Sistema",
                     Email = "admin@vesta.es",
-                    Password = "1234",
                     Rol = "Admin",
-                    Dni = "00000000T",
-                    Telefono = "000000000",
-                    Disponibilidad = true
+                    Dni = "12345678B",         
+                    Telefono = "600000000",    
+                    Disponibilidad = true,
+                    Activo = true
                 };
+                admin.Password = hasher.HashPassword(admin, "123456");
+
                 context.Usuarios.Add(admin);
                 context.SaveChanges();
             }
 
-            // Ayuntamiento con su login
             var ayto = context.Ayuntamientos.FirstOrDefault(a => a.Cif == "P2608900C");
             if (ayto == null)
             {
@@ -38,31 +41,32 @@ namespace Backend.DataSeed
                     Cif = "P2608900C",
                     Direccion = "Avenida de la Paz, 11"
                 };
-                
                 context.Ayuntamientos.Add(ayto);
                 context.SaveChanges(); 
             }
+
 
             var usuarioAyto = context.Usuarios.FirstOrDefault(u => u.Email == "ayto@vesta.es");
             if (usuarioAyto == null)
             {
                 usuarioAyto = new Usuario
                 {
-                    Email = "ayto@vesta.es",
-                    Password = "1234",
                     Nombre = "Admin Logroño",
+                    Email = "ayto@vesta.es",
                     Rol = "Ayuntamiento",
-                    Dni = "00000001A",
-                    Telefono = "600000000",
+                    Dni = "23456789C",         
+                    Telefono = "611111111",    
                     Disponibilidad = true,
+                    Activo = true,
                     IdAyuntamiento = ayto.Id 
                 };
+
+                usuarioAyto.Password = hasher.HashPassword(usuarioAyto, "123456");
 
                 context.Usuarios.Add(usuarioAyto);
                 context.SaveChanges();
             }
 
-            //Centros
             var centro1 = context.Centros.FirstOrDefault(c => c.Nombre == "Polideportivo Las Gaunas");
             if (centro1 == null)
             {
@@ -77,42 +81,43 @@ namespace Backend.DataSeed
                 context.SaveChanges();
             }
 
-            //Trabajador 1 (Juan libre / sin empresa)
             var juan = context.Usuarios.FirstOrDefault(u => u.Email == "juan@vesta.es");
             if (juan == null)
             {
                 juan = new Usuario
                 {
-                    Nombre = "Juan García",
+                    Nombre = "Juan Garcia", 
                     Email = "juan@vesta.es",
-                    Password = "1234",
                     Rol = "Trabajador",
                     Dni = "12345678X",
                     Telefono = "600123456",
-                    Disponibilidad = true
+                    Disponibilidad = true,
+                    Activo = true
                 };
+                juan.Password = hasher.HashPassword(juan, "123456");
+
                 context.Usuarios.Add(juan);
                 context.SaveChanges();
             }
 
-            //Trabajador 2: (Maria libre / sin empresa)
             var maria = context.Usuarios.FirstOrDefault(u => u.Email == "maria@vesta.es");
             if (maria == null)
             {
                 maria = new Usuario
                 {
-                    Nombre = "María López",
+                    Nombre = "Maria Lopez",
                     Email = "maria@vesta.es",
-                    Password = "1234",
                     Rol = "Trabajador",
                     Dni = "87654321M",
                     Telefono = "611987654",
-                    Disponibilidad = true
+                    Disponibilidad = true,
+                    Activo = true
                 };
+                maria.Password = hasher.HashPassword(maria, "123456");
+
                 context.Usuarios.Add(maria);
                 context.SaveChanges();
             }
-            context.SaveChanges();
         }
     }
 }

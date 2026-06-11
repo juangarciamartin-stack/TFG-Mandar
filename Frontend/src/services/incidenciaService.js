@@ -5,7 +5,7 @@ export const getIncidencias = async () => {
   return response.data;
 };
 
-//  Traer incidencias filtradas por empresa (Uso del selector superior del CEO)
+//  Traer incidencias filtradas por empresa 
 export const getIncidenciasPorEmpresa = async (empresaId) => {
   const response = await api.get(`/Incidencias/empresa/${empresaId}`);
   return response.data;
