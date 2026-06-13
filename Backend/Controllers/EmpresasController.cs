@@ -56,7 +56,7 @@ namespace Backend.Controllers
                     e.Direccion,
                     e.EmailContacto,
                     e.UsuarioId,
-                    e.AyuntamientoId, // <--- !!! AGREGA ESTA LÍNEA AQUÍ !!!
+                    e.AyuntamientoId, 
                     EstadoAprobacion = e.EstadoAprobacion ?? "Aprobado",
                     LotesAsignados = _context.Lotes
                         .Where(l => l.IdEmpresa == e.Id)
