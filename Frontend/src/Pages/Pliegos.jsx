@@ -15,8 +15,6 @@ export const Pliegos = () => {
 
   const [loteId, setLoteId] = useState("");
   const [archivoPDF, setArchivoPDF] = useState(null);
-
-  // Lectura dinámica del rol dentro del componente
   const miRol = localStorage.getItem("rol");
 
   useEffect(() => {

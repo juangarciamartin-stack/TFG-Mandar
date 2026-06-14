@@ -55,13 +55,13 @@ namespace Backend.Controllers
 
                 var nuevoUsuario = new Usuario
                 {
-                    Nombre = dto.NombreResponsable.Trim(), 
+                    Nombre = !string.IsNullOrEmpty(dto.NombreResponsable) ? dto.NombreResponsable.Trim() : "Responsable", 
                     Email = dto.Email.Trim(),
                     Password = BCrypt.Net.BCrypt.HashPassword(dto.Password), 
                     Rol = "Ayuntamiento", 
                     Activo = true,
-                    Dni = dto.DniResponsable.Trim().ToUpper(), 
-                    Telefono = dto.TelefonoResponsable.Trim(), 
+                    Dni = !string.IsNullOrEmpty(dto.DniResponsable) ? dto.DniResponsable.Trim().ToUpper() : "00000000X", 
+                    Telefono = !string.IsNullOrEmpty(dto.TelefonoResponsable) ? dto.TelefonoResponsable.Trim() : "000000000", 
                     IdAyuntamiento = nuevoAyuntamiento.Id 
                 };
 
@@ -75,9 +75,10 @@ namespace Backend.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return StatusCode(500, $"Error interno al crear el ayuntamiento y su gestor: {ex.Message}");
+                return StatusCode(500, $"Error interno al crear el ayuntamiento y su gestor: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
+
         [HttpPut("{id}")]
         public async Task<IActionResult> PutAyuntamiento(int id, Ayuntamiento ayuntamiento)
         {

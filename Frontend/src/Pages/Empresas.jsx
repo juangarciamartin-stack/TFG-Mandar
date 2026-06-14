@@ -161,11 +161,7 @@ export const Empresas = () => {
     }
   }, [vistaActiva, todasLasEmpresas, idEmpresaContratado, miRol, miUsuarioId]);
 
-  const abrirModalCrear = () => {
-    setEditandoId(null);
-    setFormData({ nombreEmpresa: "", cif: "", direccion: "", emailContacto: "", usuarioId: "" });
-    setMostrarModal(true);
-  };
+
 
   const prepararEdicion = (emp) => {
     setEditandoId(emp.id);
@@ -446,12 +442,6 @@ const handleSubmitPostulacionReal = async (e) => {
                 ? vistaActiva === "activas" ? "Entidades Homologadas Globales" : "Historial de Entidades en Cese / Inactivas"
                 : vistaActiva === "propias" ? "Tus Empresas en Propiedad" : vistaActiva === "trabajando" ? "Tu Destino Laboral Actual" : "Oferta de Contratistas del Municipio"}
             </h2>
-
-            {miRol === "Admin" && (
-              <button className="btn-vesta primario" onClick={abrirModalCrear}>
-                + Nueva Empresa
-              </button>
-            )}
           </div>
 
           {loading ? (

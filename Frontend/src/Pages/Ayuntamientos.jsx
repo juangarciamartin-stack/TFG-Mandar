@@ -148,24 +148,29 @@ export const Ayuntamientos = () => {
 
       try {
         const datosParaCrear = {
-          nombre: formData.nombreMunicipio,
-          email: formData.email,
-          password: formData.password,
-          cif: cifFormateado,
-          direccion: formData.direccion,
-          nombreResponsable: formData.nombreResponsable.trim(),
-          dniResponsable: dniMayuscula,
-          telefonoResponsable: formData.telefonoResponsable.trim(),
+          Nombre: formData.nombreMunicipio.trim(),
+          Email: formData.email.trim(),
+          Password: formData.password,
+          Cif: cifFormateado,
+          Direccion: formData.direccion.trim(),
+          NombreResponsable: formData.nombreResponsable.trim(),
+          DniResponsable: dniMayuscula,
+          TelefonoResponsable: formData.telefonoResponsable.trim(),
         };
 
+        console.log("Enviando datos al backend:", datosParaCrear);
+
         await createAyuntamiento(datosParaCrear);
+        
+        alert("Ayuntamiento dado de alta correctamente.");
         setMostrarModal(false);
         cargarDatosMunicipales();
       } catch (error) {
-        alert("Error al guardar el ayuntamiento. Asegúrate de introducir datos válidos y un email que no exista.");
+        console.error("Error exacto devuelto por el servicio:", error);
+        alert("Error al guardar el ayuntamiento. Revisa la consola para más detalles.");
       }
     }
-  };
+  }; 
 
   return (
     <div className="vista-page-container">
@@ -277,14 +282,15 @@ export const Ayuntamientos = () => {
 };
 
 const modalOverlayStyle = { 
-    position: "fixed",
-    top: 0, left: 0, right: 0, bottom: 0, 
-    backgroundColor: "rgba(15, 23, 42, 0.4)",
-    backdropFilter: "blur(4px)",
-     display: "flex", 
-     justifyContent: "center", 
-     alignItems: "center", 
-     zIndex: 1000 };
+  position: "fixed",
+  top: 0, left: 0, right: 0, bottom: 0, 
+  backgroundColor: "rgba(15, 23, 42, 0.4)",
+  backdropFilter: "blur(4px)",
+  display: "flex", 
+  justifyContent: "center", 
+  alignItems: "center", 
+  zIndex: 1000 
+};
 
 const modalContentStyle = {
   backgroundColor: "#fff", 
@@ -294,22 +300,25 @@ const modalContentStyle = {
   maxWidth: "500px", 
   maxHeight: "90vh", 
   overflowY: "auto", 
-  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" };
+  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" 
+};
 
 const labelStyle = {
   display: "block", 
   marginBottom: "4px", 
   fontWeight: "600", 
   fontSize: "12px", 
-  color: "#334155" };
+  color: "#334155" 
+};
 
 const inputStyle = {
-   width: "100%", 
-   padding: "8px 12px", 
-   border: "1px solid #cbd5e1", 
-   borderRadius: "8px", 
-   fontSize: "14px", 
-   boxSizing: "border-box", 
-   backgroundColor: "#f8fafc", 
-   color: "#334155", 
-   outline: "none" };
+  width: "100%", 
+  padding: "8px 12px", 
+  border: "1px solid #cbd5e1", 
+  borderRadius: "8px", 
+  fontSize: "14px", 
+  boxSizing: "border-box", 
+  backgroundColor: "#f8fafc", 
+  color: "#334155", 
+  outline: "none" 
+};

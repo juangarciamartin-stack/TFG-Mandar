@@ -56,7 +56,7 @@ namespace Backend.Controllers
                     e.Direccion,
                     e.EmailContacto,
                     e.UsuarioId,
-                    e.AyuntamientoId, // <--- !!! AGREGA ESTA LÍNEA AQUÍ !!!
+                    e.AyuntamientoId, 
                     EstadoAprobacion = e.EstadoAprobacion ?? "Aprobado",
                     LotesAsignados = _context.Lotes
                         .Where(l => l.IdEmpresa == e.Id)
@@ -111,13 +111,16 @@ namespace Backend.Controllers
 
         // GET: api/Empresas/pendientes
         [HttpGet("pendientes")]
-        public async Task<IActionResult> GetPendientes([FromQuery] int? ayuntamientoId = null)
+        public async Task<IActionResult> GetPendientes([FromQuery(Name = "ayuntamientoId")] int? ayuntamientoId = null)
         {
             var query = _context.Empresas.Where(e => e.EstadoAprobacion == "Pendiente");
-
             if (ayuntamientoId.HasValue && ayuntamientoId.Value > 0)
             {
                 query = query.Where(e => e.AyuntamientoId == ayuntamientoId.Value);
+            }
+            else 
+            {
+                 return BadRequest("Se requiere un AyuntamientoId válido.");
             }
 
             var resultado = await query.ToListAsync();

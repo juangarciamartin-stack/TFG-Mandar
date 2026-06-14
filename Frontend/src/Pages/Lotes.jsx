@@ -31,7 +31,7 @@ export const Lotes = () => {
   const [loteParaPliego, setLoteParaPliego] = useState(null);
   const [archivoPDF, setArchivoPDF] = useState(null);
 
-useEffect(() => {
+  useEffect(() => {
     if (miRol === "Admin" || miRol === "Ayuntamiento") {
       cargarLotes();
       cargarEmpresasActivas(); 
@@ -63,7 +63,7 @@ useEffect(() => {
     }
   };
 
-const cargarEmpresasActivas = async () => {
+  const cargarEmpresasActivas = async () => {
     try {
       let idAytoFiltrar = "";
       if (miRol === "Admin") {
@@ -97,7 +97,20 @@ const cargarEmpresasActivas = async () => {
     }
   };
 
- const abrirModalLote = (lote = null) => {
+  const handleDelete = async (id) => {
+    if (window.confirm("¿Estás seguro de que deseas eliminar permanentemente este lote de contratación?")) {
+      try {
+        await deleteLote(id);
+        alert("El lote se ha eliminado correctamente.");
+        cargarLotes(); 
+      } catch (error) {
+        console.error("Error detectado al intentar borrar el lote:", error);
+        alert("No se pudo eliminar el lote. Asegúrate de que no tenga centros vinculados que dependan de él.");
+      }
+    }
+  };
+
+  const abrirModalLote = (lote = null) => {
     if (lote) {
       setFormData({
         id: lote.id,
@@ -120,7 +133,7 @@ const cargarEmpresasActivas = async () => {
     setMostrarModalLote(true);
   };
 
-const handleSubmitLote = async (e) => {
+  const handleSubmitLote = async (e) => {
     e.preventDefault();
     try {
       let miAyuntamientoId = "";
@@ -230,7 +243,7 @@ const handleSubmitLote = async (e) => {
             <button className="btn-vesta primario" onClick={() => abrirModalLote()}>+ Nuevo Lote</button>
           </div>
 
-          {loading ? (
+          ={loading ? (
             <p>Cargando lotes...</p>
           ) : lotes.length === 0 ? (
             <p style={{ color: "#64748b" }}>No hay lotes creados.</p>
@@ -241,7 +254,7 @@ const handleSubmitLote = async (e) => {
                   <th>Nombre del Lote</th>
                   <th>Descripción Técnica</th>
                   <th>Ayuntamiento</th>
-                  <th>Centros Asignados</th> {/* ← NUEVA COLUMNA */}
+                  <th>Centros Asignados</th>
                   <th>Empresa Adjudicada</th> 
                   <th>Documentos Pliegos (PDF)</th>
                   <th style={{ textAlign: "right" }}>Acciones</th>

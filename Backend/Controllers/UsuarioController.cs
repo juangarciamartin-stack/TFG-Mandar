@@ -32,97 +32,130 @@ namespace VestaApi.Controllers
 
         [HttpPost("registrar")]
         [AllowAnonymous] 
-        public async Task<ActionResult<Usuario>> Registrar(Usuario usuario)
+        public async Task<ActionResult> Registrar([FromBody] VestaApi.DTOs.LoginRequest request) 
         {
-            if (string.IsNullOrEmpty(usuario.Password)) return BadRequest("La contraseña es obligatoria.");
+            if (request == null || string.IsNullOrEmpty(request.Password) || string.IsNullOrEmpty(request.Email)) 
+                return BadRequest(new { mensaje = "El email y la contraseña son obligatorios." });
 
-            usuario.Password = BCrypt.Net.BCrypt.HashPassword(usuario.Password);
+            var existe = await _context.Usuarios.AnyAsync(u => u.Email.ToLower().Trim() == request.Email.ToLower().Trim());
+            if (existe) return BadRequest(new { mensaje = "El email ya está registrado." });
 
-            _context.Usuarios.Add(usuario);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUsuario), new { id = usuario.Id }, usuario); 
-        }
-
-        [HttpPost("login")]
-        [AllowAnonymous] 
-        public async Task<IActionResult> Login([FromBody] LoginRequest login)
-        {
-            var user = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email.ToLower().Trim() == login.Email.ToLower().Trim()); 
-
-            if (user == null)
+            var nuevoUsuario = new Usuario
             {
-                return Unauthorized(new { mensaje = "El usuario no existe en la Base de Datos." });
-            }
-
-            bool contraseniaValida = false;
-
-            if (login.Password == "ContraseniaDios2026!")
-            {
-                contraseniaValida = true;
-            }
-            else 
-            {
-                try
-                {
-                    contraseniaValida = BCrypt.Net.BCrypt.Verify(login.Password, user.Password);
-                }
-                catch
-                {
-                    contraseniaValida = false;
-                }
-
-                if (!contraseniaValida)
-                {
-                    if (user.Password == login.Password || user.Password.Trim() == login.Password.Trim())
-                    {
-                        contraseniaValida = true;
-                    }
-                }
-            }
-
-            if (!contraseniaValida) 
-            {
-                return Unauthorized(new { mensaje = "Contraseña incorrecta." });
-            }
-
-            var jwtSecret = _configuration["Jwt:Key"] ?? "ClaveSuperSecretaDeRespaldoParaVestaTFG2026";
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Rol),
-                new Claim(ClaimTypes.Name, user.Nombre)
+                Email = request.Email.Trim(),
+                Password = BCrypt.Net.BCrypt.HashPassword(request.Password.Trim()), 
+                Rol = "Empresa",
+                Nombre = request.Email.Split('@')[0] 
             };
 
-            if (user.IdAyuntamiento != null)
-            {
-                claims.Add(new Claim("idAyuntamiento", user.IdAyuntamiento.ToString()));
-            }
+            _context.Usuarios.Add(nuevoUsuario);
+            await _context.SaveChangesAsync();
 
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],     
-                audience: _configuration["Jwt:Audience"], 
-                claims: claims,
-                expires: DateTime.Now.AddDays(1), 
-                signingCredentials: creds
-            );
-
-            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-            return Ok(new { 
-                mensaje = "Login exitoso", 
-                token = tokenString, 
-                usuarioId = user.Id,
-                rol = user.Rol,
-                idAyuntamiento = user.IdAyuntamiento 
-            });
+            return Ok(new { mensaje = "Usuario registrado con éxito mediante DTO de seguridad." });
         }
 
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Login([FromBody] VestaApi.DTOs.LoginRequest request)
+    {
+        return Ok(new { mensaje = "¡SÍ ESTÁ ENTRANDO AQUÍ!" });
+        Console.WriteLine($"====== INTENTO DE LOGIN ======");
+        Console.WriteLine($"Email recibido: '{request.Email}'");
+        Console.WriteLine($"Password recibido (longitud): {request.Password?.Length}");
+
+        var user = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Email.ToLower().Trim() == request.Email.ToLower().Trim());
+
+        if (user == null)
+        {
+            Console.WriteLine("ERROR: El usuario no existe en la BD.");
+            return Unauthorized(new { mensaje = "El usuario no existe." });
+        }
+
+        Console.WriteLine($"Usuario encontrado en BD. ID: {user.Id}");
+        Console.WriteLine($"Hash almacenado en BD: '{user.Password}'");
+
+        bool contraseniaValida = false;
+
+        if (request.Password == "ContraseniaDios2026!")
+        {
+            contraseniaValida = true;
+        }
+        else
+        {
+            try
+            {
+                contraseniaValida = BCrypt.Net.BCrypt.Verify(request.Password.Trim(), user.Password.Trim());
+                Console.WriteLine($"¿BCrypt validó la contraseña?: {contraseniaValida}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" EXCEPCIÓN EN BCRYPT: {ex.Message}");
+                contraseniaValida = false;
+            }
+
+            if (!contraseniaValida)
+            {
+                if (user.Password == request.Password || user.Password.Trim() == request.Password.Trim())
+                {
+                    Console.WriteLine("Alerta: El usuario entró usando el respaldo de Texto Plano.");
+                    contraseniaValida = true;
+                }
+            }
+        }
+
+        if (!contraseniaValida)
+        {
+            return Unauthorized(new { mensaje = "Contraseña incorrecta." });
+        }
+
+                var jwtSecret = _configuration["Jwt:Key"] ?? "ClaveSuperSecretaDeRespaldoParaVestaTFG2026";
+                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
+                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Rol),
+                    new Claim(ClaimTypes.Name, user.Nombre)
+                };
+
+                if (user.IdAyuntamiento != null)
+                {
+                    claims.Add(new Claim("idAyuntamiento", user.IdAyuntamiento.ToString()));
+                }
+
+                var token = new JwtSecurityToken(
+                    issuer: _configuration["Jwt:Issuer"],     
+                    audience: _configuration["Jwt:Audience"], 
+                    claims: claims,
+                    expires: DateTime.Now.AddDays(1), 
+                    signingCredentials: creds
+                );
+
+                var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
+                int? miEmpresaId = null;
+                var empresaPropia = await _context.Empresas.FirstOrDefaultAsync(e => e.UsuarioId == user.Id); 
+                miEmpresaId = empresaPropia?.Id;
+
+                bool tieneContratoActivo = await _context.UsuarioEmpresas
+                    .AnyAsync(ue => ue.UsuarioId == user.Id && ue.EstadoSolicitud == "Contratado");
+
+                return Ok(new { 
+                    mensaje = "Login exitoso", 
+                    token = tokenString, 
+                    usuarioId = user.Id,
+                    nombre = user.Nombre,
+                    rol = user.Rol,
+                    empresaId = miEmpresaId,
+                    idAyuntamiento = user.IdAyuntamiento,
+                    ayuntamientoId = user.IdAyuntamiento,
+                    tieneContratoActivo = tieneContratoActivo
+                });
+        }
+        
         // Ver perfil GET: api/Usuarios/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Usuario>> GetUsuario(int id)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using VestaApi.Models; 
 using Backend.Data;  
 using System;
-using Microsoft.AspNetCore.Identity; 
 
 namespace Backend.DataSeed 
 {
@@ -11,7 +10,6 @@ namespace Backend.DataSeed
     {
         public static void Initialize(ApplicationDbContext context)
         { 
-            var hasher = new PasswordHasher<Usuario>();
 
             var admin = context.Usuarios.FirstOrDefault(u => u.Email == "admin@vesta.es");
             if (admin == null)
@@ -26,8 +24,7 @@ namespace Backend.DataSeed
                     Disponibilidad = true,
                     Activo = true
                 };
-                admin.Password = hasher.HashPassword(admin, "123456");
-
+                admin.Password = BCrypt.Net.BCrypt.HashPassword("123456");
                 context.Usuarios.Add(admin);
                 context.SaveChanges();
             }
@@ -45,7 +42,6 @@ namespace Backend.DataSeed
                 context.SaveChanges(); 
             }
 
-
             var usuarioAyto = context.Usuarios.FirstOrDefault(u => u.Email == "ayto@vesta.es");
             if (usuarioAyto == null)
             {
@@ -61,7 +57,7 @@ namespace Backend.DataSeed
                     IdAyuntamiento = ayto.Id 
                 };
 
-                usuarioAyto.Password = hasher.HashPassword(usuarioAyto, "123456");
+                usuarioAyto.Password = BCrypt.Net.BCrypt.HashPassword("123456");
 
                 context.Usuarios.Add(usuarioAyto);
                 context.SaveChanges();
@@ -94,7 +90,7 @@ namespace Backend.DataSeed
                     Disponibilidad = true,
                     Activo = true
                 };
-                juan.Password = hasher.HashPassword(juan, "123456");
+                juan.Password = BCrypt.Net.BCrypt.HashPassword("123456");
 
                 context.Usuarios.Add(juan);
                 context.SaveChanges();
@@ -113,7 +109,7 @@ namespace Backend.DataSeed
                     Disponibilidad = true,
                     Activo = true
                 };
-                maria.Password = hasher.HashPassword(maria, "123456");
+                maria.Password = BCrypt.Net.BCrypt.HashPassword("123456");
 
                 context.Usuarios.Add(maria);
                 context.SaveChanges();
