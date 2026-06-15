@@ -1,6 +1,7 @@
 import axios from "axios";
+import api from "./api";
 
-const API_URL = "http://localhost:5125/api/Auth";
+const API_URL = api.defaults.baseURL;
 
 export const login = async (email, password) => {
   try {
@@ -9,7 +10,6 @@ export const login = async (email, password) => {
       password: password,
     });
 
-    // Validamos la respuesta procesando tanto mayúsculas de C# como minúsculas
     const data = response.data;
     const token = data.token || data.Token;
     const rol = data.rol || data.Rol;
