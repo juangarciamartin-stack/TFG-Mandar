@@ -1,9 +1,9 @@
-import api from "./api"; //cogemos el de api
+import axios from "axios";
+import { getCurrentUser } from "./authService";
 
-const API_URL = "/Centros"; //la base del URL esta en api
+const API_URL = `${import.meta.env.VITE_API_URL}/Centros`;
 
 export const getCentros = async () => {
-  // El interceptor pondra el Token "Bearer" automaticamente antes de salir
   const response = await api.get(API_URL);
   return response.data;
 };

@@ -1,22 +1,35 @@
-import api from "./api"; //  Nuestra instancia con interceptores automáticos
+import axios from "axios";
+import { getCurrentUser } from "./authService";
 
-const API_URL = "/Lotes";
+const API_URL = `${import.meta.env.VITE_API_URL}/Lotes`;
 
 export const getLotes = async () => {
-  const response = await api.get(API_URL);
+  const user = getCurrentUser();
+  const response = await axios.get(API_URL, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const createLote = async (data) => {
-  const response = await api.post(API_URL, data);
+  const user = getCurrentUser();
+  const response = await axios.post(API_URL, data, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const updateLote = async (id, data) => {
-  const response = await api.put(`${API_URL}/${id}`, data);
+  const user = getCurrentUser();
+  const response = await axios.put(`${API_URL}/${id}`, data, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const deleteLote = async (id) => {
-  await api.delete(`${API_URL}/${id}`);
+  const user = getCurrentUser();
+  await axios.delete(`${API_URL}/${id}`, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
 };

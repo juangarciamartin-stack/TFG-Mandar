@@ -1,28 +1,44 @@
-import api from "./api";
+import axios from "axios";
+import { getCurrentUser } from "./authService";
+
+const getUrl = (path = "") => `${import.meta.env.VITE_API_URL}/Incidencias${path}`;
 
 export const getIncidencias = async () => {
-  const response = await api.get("/Incidencias");
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl(), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
-//  Traer incidencias filtradas por empresa 
 export const getIncidenciasPorEmpresa = async (empresaId) => {
-  const response = await api.get(`/Incidencias/empresa/${empresaId}`);
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl(`/empresa/${empresaId}`), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
-// Traer contratas del operario para rellenar el modal select
 export const getMisContratasTrabajador = async () => {
-  const response = await api.get("/Incidencias/mis-contratas-trabajador");
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl("/mis-contratas-trabajador"), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const createIncidencia = async (incidenciaData) => {
-  const response = await api.post("/Incidencias", incidenciaData);
+  const user = getCurrentUser();
+  const response = await axios.post(getUrl(), incidenciaData, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const updateIncidencia = async (id, incidenciaData) => {
-  const response = await api.put(`/Incidencias/${id}`, incidenciaData);
+  const user = getCurrentUser();
+  const response = await axios.put(getUrl(`/${id}`), incidenciaData, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };

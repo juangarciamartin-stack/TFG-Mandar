@@ -1,34 +1,51 @@
-import api from "./api";
+import axios from "axios";
+import { getCurrentUser } from "./authService";
+
+const getBaseUrl = () => `${import.meta.env.VITE_API_URL}/Empresas`;
 
 export const getEmpresas = async (ayuntamientoId = null) => {
+  const user = getCurrentUser();
   const url = ayuntamientoId 
-    ? `/Empresas?ayuntamientoId=${ayuntamientoId}` 
-    : '/Empresas';
+    ? `${getBaseUrl()}?ayuntamientoId=${ayuntamientoId}` 
+    : getBaseUrl();
     
-  const response = await api.get(url); 
+  const response = await axios.get(url, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  }); 
   return response.data;
 };
 
 export const updateEmpresa = async (id, formData) => {
-  const response = await api.put(`/Empresas/${id}`, formData);
+  const user = getCurrentUser();
+  const response = await axios.put(`${getBaseUrl()}/${id}`, formData, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const deleteEmpresa = async (id) => {
-  const response = await api.delete(`/Empresas/${id}`);
+  const user = getCurrentUser();
+  const response = await axios.delete(`${getBaseUrl()}/${id}`, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const solicitarCreacionEmpresa = async (formData) => {
-  const response = await api.post("/Empresas/solicitar", formData);
+  const user = getCurrentUser();
+  const response = await axios.post(`${getBaseUrl()}/solicitar`, formData, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const getEmpresasPendientes = async (ayuntamientoId) => {
+  const user = getCurrentUser();
   try {
     if (!ayuntamientoId || ayuntamientoId === 0 || ayuntamientoId === "0") {
-     
-      const response = await api.get("/Empresas");
+      const response = await axios.get(getBaseUrl(), {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      });
       let listado = Array.isArray(response.data) ? response.data : (response.data?.data || []);
 
       listado.forEach((emp, index) => {
@@ -44,8 +61,10 @@ export const getEmpresasPendientes = async (ayuntamientoId) => {
       return filtradasParaAdmin;
     } 
     else {
-      const url = `/Empresas/pendientes?ayuntamientoId=${ayuntamientoId}`;
-      const response = await api.get(url);
+      const url = `${getBaseUrl()}/pendientes?ayuntamientoId=${ayuntamientoId}`;
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      });
       return response.data;
     }
   } catch (error) {
@@ -55,15 +74,20 @@ export const getEmpresasPendientes = async (ayuntamientoId) => {
 };
 
 export const cambiarEstadoEmpresa = async (empresaId, estado) => {
-  const response = await api.put(`/Empresas/${empresaId}/cambiar-estado`, {
+  const user = getCurrentUser();
+  const response = await axios.put(`${getBaseUrl()}/${empresaId}/cambiar-estado`, {
     Estado: estado,
+  }, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
   return response.data;
 };
 
 export const postularseAEmpresa = async (formDataObjeto) => {
-  const response = await api.post("/Empresas/postularse", formDataObjeto, {
+  const user = getCurrentUser();
+  const response = await axios.post(`${getBaseUrl()}/postularse`, formDataObjeto, {
     headers: {
+      Authorization: `Bearer ${user?.token}`,
       "Content-Type": "multipart/form-data",
     },
   });

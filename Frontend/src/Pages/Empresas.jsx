@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Sidebar from "../Components/Sidebar";
-import api from "../services/api";
+import axios from "axios"; 
 import {
   getEmpresas,
   createEmpresa,
@@ -23,7 +23,6 @@ export const Empresas = () => {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [idEmpresaContratado, setIdEmpresaContratado] = useState([]);
 
-
   const [vistaActiva, setVistaActiva] = useState(() => {
     if (miRol === "Admin" || miRol === "Ayuntamiento") return "activas";
     if (miRol === "Trabajador") return "todas"; 
@@ -42,7 +41,6 @@ export const Empresas = () => {
     usuarioId: "",
   });
 
-
   const tieneEmpresaActiva = todasLasEmpresas.some(
     (e) => e.usuarioId === miUsuarioId && e.estadoAprobacion === "Aprobado",
   );
@@ -52,7 +50,7 @@ export const Empresas = () => {
   );
 
   const obtenerUrlDescarga = (rutaArchivo) => {
-    const base = api.defaults.baseURL || "";
+    const base = import.meta.env.VITE_API_URL || "";
     if (base.startsWith("http")) {
       const urlObjeto = new URL(base);
       return `${urlObjeto.origin}${rutaArchivo}`;
@@ -64,7 +62,10 @@ export const Empresas = () => {
   const cargarUsuarios = useCallback(async () => {
     if (miRol !== "Admin") return;
     try {
-      const response = await api.get("/Usuarios/lista-simples");
+      const token = localStorage.getItem("token"); // Recuperamos token para los headers a mano
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/Usuarios/lista-simples`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const listaCompleta = Array.isArray(response.data)
         ? response.data
         : response.data?.data || [];
@@ -80,7 +81,6 @@ export const Empresas = () => {
     }
   }, [miRol]);
 
-
   const cargarDatos = useCallback(async () => {
     try {
       setLoading(true);
@@ -92,12 +92,16 @@ export const Empresas = () => {
       const data = await getEmpresas(miAyuntamientoId);
       const listaEmpresas = Array.isArray(data) ? data : data?.data || [];
 
+      const token = localStorage.getItem("token");
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const baseUrl = import.meta.env.VITE_API_URL;
+
       const empresasConDetalles = await Promise.all(
         listaEmpresas.map(async (empresa) => {
           try {
             const [resCentros, resPliegos] = await Promise.all([
-              api.get(`/Empresas/mis-centros/${empresa.id}`).catch(() => ({ data: [] })),
-              api.get(`/Empresas/mis-pliegos/${empresa.id}`).catch(() => ({ data: [] })),
+              axios.get(`${baseUrl}/Empresas/mis-centros/${empresa.id}`, config).catch(() => ({ data: [] })),
+              axios.get(`${baseUrl}/Empresas/mis-pliegos/${empresa.id}`, config).catch(() => ({ data: [] })),
             ]);
             
             return {
@@ -170,8 +174,6 @@ export const Empresas = () => {
     }
   }, [vistaActiva, todasLasEmpresas, idEmpresaContratado, miRol, miUsuarioId]);
 
-
-
   const prepararEdicion = (emp) => {
     setEditandoId(emp.id);
     setFormData({
@@ -239,7 +241,7 @@ export const Empresas = () => {
     }
   };
 
-const handleReactivarEmpresa = async (emp) => {
+  const handleReactivarEmpresa = async (emp) => {
     if (window.confirm(`¿Deseas revocar la baja y reactivar la homologación oficial de ${emp.nombreEmpresa}?`)) {
       try {
         let miAyuntamientoId = 
@@ -251,17 +253,13 @@ const handleReactivarEmpresa = async (emp) => {
           miAyuntamientoId = emp.ayuntamientoId || emp.AyuntamientoId || null;
         }
 
-        console.log("Enviando reactivación con Ayuntamiento ID:", miAyuntamientoId);
-
-        if (!miAyuntamientoId && miRol !== "Admin") {
-          alert("Error local: No se ha detectado el ID de tu Ayuntamiento en la sesión. Por favor, reasigna tu login.");
-          return;
-        }
-
-        await api.put(`/Empresas/${emp.id}/cambiar-estado`, { 
+        const token = localStorage.getItem("token");
+        await axios.put(`${import.meta.env.VITE_API_URL}/Empresas/${emp.id}/cambiar-estado`, { 
           Estado: "Aprobado",
           RolUsuario: miRol,
           AyuntamientoId: miAyuntamientoId
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
         });
 
         alert("¡Empresa dada de alta con éxito! Su gestor vuelve a tener el rol activo.");
@@ -281,7 +279,7 @@ const handleReactivarEmpresa = async (emp) => {
   const handleSolicitarBajaPropia = async (emp) => {
     if (window.confirm(`¿Confirmas que deseas solicitar la BAJA de "${emp.nombreEmpresa}"?\n\ Tu empresa pasará al registro de inactivas del Ayuntamiento.`)) {
       try {
-        await api.put(`/Empresas/${emp.id}`, {
+        await updateEmpresa(emp.id, {
           id: emp.id,
           nombreEmpresa: emp.nombreEmpresa,
           cif: emp.cif,
@@ -292,24 +290,27 @@ const handleReactivarEmpresa = async (emp) => {
         });
         alert("Solicitud de baja procesada. La empresa se ha trasladado al archivo histórico.");
         cargarDatos();
-        } catch (error) {
-          if (error.response?.status === 409) {
-            alert("No se puede dar de baja: " + (error.response.data?.mensaje || "existen lotes activos asignados a esta empresa."));
-          } else {
-            alert("Error al comunicar la solicitud de cese administrativo.");
-          }
+      } catch (error) {
+        if (error.response?.status === 409) {
+          alert("No se puede dar de baja: " + (error.response.data?.mensaje || "existen lotes activos asignados a esta empresa."));
+        } else {
+          alert("Error al comunicar la solicitud de cese administrativo.");
         }
+      }
     }
   };
 
-const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
+  const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
     if (!empresaId) {
       alert("Error interno: No se pudo identificar el código de la empresa.");
       return;
     }
     if (window.confirm(`¿Estás seguro de que deseas tramitar tu baja voluntaria de "${nombreEmpresa}"?`)) {
       try {
-        await api.delete(`/Empresas/${empresaId}/despedir-trabajador/${miUsuarioId}`);
+        const token = localStorage.getItem("token");
+        await axios.delete(`${import.meta.env.VITE_API_URL}/Empresas/${empresaId}/despedir-trabajador/${miUsuarioId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         
         alert("Gestión completada. Has causado baja voluntaria con éxito.");
         setVistaActiva("todas");
@@ -331,7 +332,7 @@ const handleDimitirContrato = async (empresaId, nombreEmpresa) => {
     setMostrarModalCV(true);
   };
 
-const handleSubmitPostulacionReal = async (e) => {
+  const handleSubmitPostulacionReal = async (e) => {
     e.preventDefault();
     if (!formCV.archivo) {
       alert("Por favor, selecciona un archivo PDF válido.");
@@ -339,7 +340,6 @@ const handleSubmitPostulacionReal = async (e) => {
     }
     try {
       const datosParaEnvio = new FormData();
-      
       datosParaEnvio.append("usuarioId", miUsuarioId);
       datosParaEnvio.append("empresaId", empresaPostularSeleccionada.id);
       
@@ -398,51 +398,51 @@ const handleSubmitPostulacionReal = async (e) => {
           <p>Registro oficial de contratistas homologados del sector de prestación de servicios municipales.</p>
         </div>
 
-          {miRol === "Admin" || miRol === "Ayuntamiento" ? (
-            <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        {miRol === "Admin" || miRol === "Ayuntamiento" ? (
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+            <button
+              onClick={() => setVistaActiva("activas")}
+              style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "activas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "activas" ? "#fff" : "#475569" }}
+            >
+              Empresas Homologadas Activas
+            </button>
+            <button
+              onClick={() => setVistaActiva("ceses")}
+              style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "ceses" ? "#eab308" : "#e2e8f0", color: vistaActiva === "ceses" ? "#fff" : "#475569" }}
+            >
+              Solicitudes de Baja e Inactivas
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+            {miRol === "Empresa" && (
               <button
-                onClick={() => setVistaActiva("activas")}
-                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "activas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "activas" ? "#fff" : "#475569" }}
+                onClick={() => setVistaActiva("propias")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "propias" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "propias" ? "#fff" : "#475569" }}
               >
-                Empresas Homologadas Activas
+                Mis Empresas Registradas
               </button>
+            )}
+
+            {miRol === "Trabajador" && tieneContratosActivos && (
               <button
-                onClick={() => setVistaActiva("ceses")}
-                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "ceses" ? "#eab308" : "#e2e8f0", color: vistaActiva === "ceses" ? "#fff" : "#475569" }}
+                onClick={() => setVistaActiva("trabajando")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "trabajando" ? "#10b981" : "#e2e8f0", color: vistaActiva === "trabajando" ? "#fff" : "#475569" }}
               >
-                Solicitudes de Baja e Inactivas
+                Trabajando en...
               </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-              {miRol === "Empresa" && (
-                <button
-                  onClick={() => setVistaActiva("propias")}
-                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "propias" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "propias" ? "#fff" : "#475569" }}
-                >
-                  Mis Empresas Registradas
-                </button>
-              )}
+            )}
 
-              {miRol === "Trabajador" && tieneContratosActivos && (
-                <button
-                  onClick={() => setVistaActiva("trabajando")}
-                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "trabajando" ? "#10b981" : "#e2e8f0", color: vistaActiva === "trabajando" ? "#fff" : "#475569" }}
-                >
-                  Trabajando en...
-                </button>
-              )}
-
-              {(miRol === "Trabajador" || miRol === "Empresa") && (
-                <button
-                  onClick={() => setVistaActiva("todas")}
-                  style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
-                >
-                  Catálogo General (Buscar Empleo)
-                </button>
-              )}
-            </div>
-          )}
+            {(miRol === "Trabajador" || miRol === "Empresa") && (
+              <button
+                onClick={() => setVistaActiva("todas")}
+                style={{ ...styles.tabBtn, backgroundColor: vistaActiva === "todas" ? "#0284c7" : "#e2e8f0", color: vistaActiva === "todas" ? "#fff" : "#475569" }}
+              >
+                Catálogo General (Buscar Empleo)
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="modulo-tarjeta-blanca">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -476,9 +476,7 @@ const handleSubmitPostulacionReal = async (e) => {
               </thead>
               <tbody>
                 {empresasFiltradas.map((emp) => {
-
                   const listadoLotes = Array.isArray(emp.lotesAsignados) ? emp.lotesAsignados : [];
-
                   return (
                     <tr key={emp.id}>
                       <td><strong style={{ color: "#1e293b" }}>{emp.nombreEmpresa}</strong></td>
@@ -610,7 +608,6 @@ const handleSubmitPostulacionReal = async (e) => {
         </div>
       </div>
 
-
       {mostrarModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -660,7 +657,6 @@ const handleSubmitPostulacionReal = async (e) => {
           </div>
         </div>
       )}
-
 
       {mostrarModalCV && (
         <div style={modalOverlayStyle}>

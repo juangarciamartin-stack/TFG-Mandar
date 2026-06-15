@@ -1,17 +1,14 @@
 import axios from "axios";
 import { getCurrentUser } from "./authService";
-import api from "./api";
 
-const API_URL = api.defaults.baseURL;
+const API_URL = `${import.meta.env.VITE_API_URL}/Nominas`;
 
 export const getNominas = async () => {
   const user = getCurrentUser();
 
-  // Añadimos el token Bearer en los headers para autorizar la petición
-  const response = await axios.get(`${API_URL}/Nominas`, {
+  const response = await axios.get(API_URL, {
     headers: {
-      Authorization: `Bearer ${user.token}`,
-      //añadir la expiracion de tokens
+      Authorization: `Bearer ${user?.token}`,
     },
   });
 

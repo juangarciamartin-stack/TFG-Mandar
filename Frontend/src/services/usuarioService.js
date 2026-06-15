@@ -1,39 +1,62 @@
-import api from "./api";
+import axios from "axios";
+import { getCurrentUser } from "./authService";
+
+const getUrl = (path) => `${import.meta.env.VITE_API_URL}/Usuarios${path}`;
+
 export const getVinculaciones = async () => {
-  const response = await api.get("/Usuarios/vinculaciones-personal");
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl("/vinculaciones-personal"), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const getUsuariosLista = async () => {
-  const response = await api.get("/Usuarios/lista-simples");
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl("/lista-simples"), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const registrarVinculacion = async (payload) => {
-  const response = await api.post("/Usuarios/vincular-empresa", payload);
+  const user = getCurrentUser();
+  const response = await axios.post(getUrl("/vincular-empresa"), payload, {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const getMisEmpresasSelector = async () => {
-  const response = await api.get("/Usuarios/mis-empresas-selector");
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl("/mis-empresas-selector"), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const getTrabajadoresEmpresa = async (empresaId) => {
-  const response = await api.get(`/Usuarios/empresa/${empresaId}/trabajadores`);
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl(`/empresa/${empresaId}/trabajadores`), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const getPosiblesTrabajadores = async (empresaId) => {
-  const response = await api.get(
-    `/Usuarios/empresa/${empresaId}/posibles-trabajadores`,
-  );
+  const user = getCurrentUser();
+  const response = await axios.get(getUrl(`/empresa/${empresaId}/posibles-trabajadores`), {
+    headers: { Authorization: `Bearer ${user?.token}` },
+  });
   return response.data;
 };
 
 export const contratarPersonalBolsa = async (relacionId, tipoRelacion) => {
-  const response = await api.put(`/Usuarios/contratar-personal/${relacionId}`, {
+  const user = getCurrentUser();
+  const response = await axios.put(getUrl(`/contratar-personal/${relacionId}`), {
     TipoRelacion: tipoRelacion,
+  }, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
   return response.data;
 };
