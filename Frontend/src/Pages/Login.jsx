@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import axios from "axios";
+
+const API_URL = api.defaults.baseURL;
 
 export const Login = () => {
   const [email, setEmail] = useState("");
@@ -8,25 +12,18 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch('http://localhost:5125/api/Auth/login', {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+      const response =  await api.post("/Auth/login", {
+        email: email.trim(),
+        password: password.trim()
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.mensaje || "Email o contraseña incorrectos.");
-      }
+      const data = response.data;
 
       const tokenReal = data.token;
       const usuarioIdReal = data.usuarioId;
@@ -66,7 +63,8 @@ export const Login = () => {
       }
 
     } catch (err) {
-      setError(err.message || "Email o contraseña incorrectos.");
+      const mensajeError = err.response?.data?.mensaje || err.message || "Email o contraseña incorrectos.";
+      setError(mensajeError);
     } finally {
       setLoading(false);
     }

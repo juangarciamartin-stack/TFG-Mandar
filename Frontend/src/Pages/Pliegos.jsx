@@ -6,6 +6,7 @@ import {
   deletePliego,
 } from "../services/pliegoService";
 import { getLotes } from "../services/loteService";
+import api from "../services/api";
 
 export const Pliegos = () => {
   const [pliegos, setPliegos] = useState([]);
@@ -200,7 +201,7 @@ export const Pliegos = () => {
                     <tr key={pliego.id}>
                       <td>
                         <a
-                          href={`http://localhost:5125${pliego.rutaURL}`}
+                          href={`${api.defaults.baseURL.replace('/api', '')}${pliego.rutaURL}`}
                           target="_blank"
                           rel="noreferrer"
                           style={{

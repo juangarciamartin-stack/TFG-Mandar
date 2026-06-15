@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getCurrentUser } from "./authService";
+import api from "./api";
 
-const API_URL = "http://localhost:5125/api"; //mirar tambien esto que sea de variables de entorno.
+const API_URL = api.defaults.baseURL;
 
 export const getNominas = async () => {
   const user = getCurrentUser();

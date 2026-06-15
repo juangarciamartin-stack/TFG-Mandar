@@ -298,23 +298,28 @@ export const Lotes = () => {
                         <span style={{ color: "#94a3b8", fontSize: "13px", fontStyle: "italic" }}>Sin adjudicar</span>
                       )}
                     </td>
-                    <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {lote.pliegos && lote.pliegos.length > 0 ? (
-                          lote.pliegos.map((pliego) => (
-                            <div key={pliego.id} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                              <a href={`http://localhost:5125${pliego.rutaURL}`} target="_blank" rel="noreferrer" style={{ fontSize: "13px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }}>
-                                 {pliego.nombreArchivo}
-                              </a>
-                              <span onClick={() => handleBorrarPdf(pliego.id)} style={{ color: "#ef4444", fontSize: "11px", cursor: "pointer", textDecoration: "underline", fontWeight: "600" }} title="Borrar este archivo adjunto">(Eliminar)</span>
-                            </div>
-                          ))
-                        ) : (
-                          <span style={{ color: "#94a3b8", fontSize: "12px", fontStyle: "italic" }}>Sin documentos adjuntos</span>
-                        )}
-                        <button className="btn-vesta" style={{ padding: "4px 8px", fontSize: "11px", alignSelf: "flex-start", backgroundColor: "#f0fdf4", color: "#166534", border: "1px dashed #bbf7d0", borderRadius: "6px", marginTop: "4px", cursor: "pointer" }} onClick={() => abrirModalPliego(lote)}>+ Adjuntar PDF</button>
-                      </div>
-                    </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {lote.pliegos && lote.pliegos.length > 0 ? (
+                            lote.pliegos.map((pliego) => (
+                              <div key={pliego.id} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <a 
+                                  href={`${api.defaults.baseURL.replace('/api', '')}${pliego.rutaURL}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  style={{ fontSize: "13px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }}
+                                >
+                                  {pliego.nombreArchivo}
+                                </a>
+                                <span onClick={() => handleBorrarPdf(pliego.id)} style={{ color: "#ef4444", fontSize: "11px", cursor: "pointer", textDecoration: "underline", fontWeight: "600" }} title="Borrar este archivo adjunto">(Eliminar)</span>
+                              </div>
+                            ))
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontSize: "12px", fontStyle: "italic" }}>Sin documentos adjuntos</span>
+                          )}
+                          <button className="btn-vesta" style={{ padding: "4px 8px", fontSize: "11px", alignSelf: "flex-start", backgroundColor: "#f0fdf4", color: "#166534", border: "1px dashed #bbf7d0", borderRadius: "6px", marginTop: "4px", cursor: "pointer" }} onClick={() => abrirModalPliego(lote)}>+ Adjuntar PDF</button>
+                        </div>
+                      </td>
                     <td style={{ textAlign: "right" }}>
                       <button className="btn-vesta secundario" style={{ marginRight: "8px", padding: "6px 12px" }} onClick={() => abrirModalLote(lote)}>Editar</button>
                       <button className="btn-vesta peligro" style={{ padding: "6px 12px" }} onClick={() => handleDelete(lote.id)}>Eliminar</button>

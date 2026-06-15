@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 export const Register = () => {
   const [nombre, setNombre] = useState("");
@@ -12,32 +13,21 @@ export const Register = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async (e) => {
+const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setInfoMessage("");
 
     try {
-      const response = await fetch("http://localhost:5125/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nombre: nombre,
-          email: email,
-          password: password,
-          dni: dni, 
-          telefono: telefono, 
-        }),
+      const response = await api.post("/auth/register", {
+        nombre: nombre,
+        email: email,
+        password: password,
+        dni: dni, 
+        telefono: telefono, 
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.mensaje || "Error al procesar el registro.");
-      }
+      const data = response.data;
 
       setInfoMessage(
         "¡Cuenta creada correctamente! Redirigiéndote al login...",
@@ -47,9 +37,8 @@ export const Register = () => {
         navigate("/login");
       }, 2500);
     } catch (err) {
-      setError(
-        err.message || "No se pudo crear la cuenta. Inténtalo de nuevo.",
-      );
+      const mensajeError = err.response?.data?.mensaje || err.message || "No se pudo crear la cuenta. Inténtalo de nuevo.";
+      setError(mensajeError);
     } finally {
       setLoading(false);
     }

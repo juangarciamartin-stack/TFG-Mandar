@@ -1,35 +1,35 @@
-import axios from "axios";
 import { getCurrentUser } from "./authService";
+import api from "./api";
 
-const API_URL = "http://localhost:5125/api/Ayuntamientos";
+const ENDPOINT = "/ayuntamientos"; 
 
 export const getAyuntamientos = async () => {
   const user = getCurrentUser();
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${user.token}` },
+  const response = await api.get(ENDPOINT, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
   return response.data;
 };
 
 export const createAyuntamiento = async (data) => {
   const user = getCurrentUser();
-  const response = await axios.post(API_URL, data, {
-    headers: { Authorization: `Bearer ${user.token}` },
+  const response = await api.post(ENDPOINT, data, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
   return response.data;
 };
 
 export const updateAyuntamiento = async (id, data) => {
   const user = getCurrentUser();
-  const response = await axios.put(`${API_URL}/${id}`, data, {
-    headers: { Authorization: `Bearer ${user.token}` },
+  const response = await api.put(`${ENDPOINT}/${id}`, data, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
   return response.data;
 };
 
 export const deleteAyuntamiento = async (id) => {
   const user = getCurrentUser();
-  await axios.delete(`${API_URL}/${id}`, {
-    headers: { Authorization: `Bearer ${user.token}` },
+  await api.delete(`${ENDPOINT}/${id}`, {
+    headers: { Authorization: `Bearer ${user?.token}` },
   });
 };

@@ -4,7 +4,6 @@ const API_URL = "http://localhost:5125/api/Auth";
 
 export const login = async (email, password) => {
   try {
-    // Esto llamará a http://localhost:5141/api/Usuarios/login
     const response = await axios.post(`${API_URL}/login`, {
       email: email,
       password: password,

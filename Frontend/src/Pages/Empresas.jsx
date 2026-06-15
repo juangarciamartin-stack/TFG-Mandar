@@ -51,6 +51,15 @@ export const Empresas = () => {
     (e) => idEmpresaContratado.includes(e.id) && e.estadoAprobacion === "Aprobado",
   );
 
+  const obtenerUrlDescarga = (rutaArchivo) => {
+    const base = api.defaults.baseURL || "";
+    if (base.startsWith("http")) {
+      const urlObjeto = new URL(base);
+      return `${urlObjeto.origin}${rutaArchivo}`;
+    }
+    const prefijoLimpio = base.endsWith("/api") ? base.slice(0, -4) : base;
+    return `${prefijoLimpio}${rutaArchivo}`;
+  };
 
   const cargarUsuarios = useCallback(async () => {
     if (miRol !== "Admin") return;
@@ -506,7 +515,14 @@ const handleSubmitPostulacionReal = async (e) => {
                         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                           {emp.pliegosCargados && emp.pliegosCargados.length > 0 ? (
                             emp.pliegosCargados.map((pliego) => (
-                              <a key={pliego.pliegoId} href={`http://localhost:5125${pliego.ruta}`} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }} title={pliego.descripcion}>
+                              <a 
+                                key={pliego.pliegoId} 
+                                href={obtenerUrlDescarga(pliego.ruta)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                style={{ fontSize: "12px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }} 
+                                title={pliego.descripcion}
+                              >
                                 {pliego.nombrePliego}
                               </a>
                             ))
